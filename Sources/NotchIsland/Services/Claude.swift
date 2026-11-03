@@ -75,6 +75,8 @@ final class ClaudeService: ObservableObject {
     var answeredLabel = ""
     var retried = false
     var permissionIsDemo = false
+    /// Wann zuletzt eine Anfrage in der Insel stand (gegen doppelte „Aufmerksamkeit“-Hinweise)
+    var lastPromptAt = Date.distantPast
     /// Anfragen aus Claude-Code-Hooks (mehrere Terminals/Agenten möglich)
     var externalPrompts: [PermissionPrompt] = []
     /// Zuletzt per Bedienungshilfen gefundene Anfragen
@@ -248,8 +250,10 @@ final class ClaudeService: ObservableObject {
         }
         // Erst melden, wenn der Zustand ein paar Sekunden anhält (kurz nach einer Antwort steht der Status noch kurz da)
         if attentionSince == nil { attentionSince = Date() }
+        // Nicht doppelt: Wurde gerade eine Anfrage gezeigt oder beantwortet, ist der Hinweis überflüssig
         guard Date().timeIntervalSince(attentionSince ?? Date()) >= 3,
-              Date().timeIntervalSince(answeredAt) > 6 else { return }
+              Date().timeIntervalSince(answeredAt) > 20,
+              Date().timeIntervalSince(lastPromptAt) > 15 else { return }
         attentionWindow = window
         let title = AX.string(window, kAXTitleAttribute as String) ?? ""
         let key = title + "|" + (text ?? "")
@@ -284,9 +288,13 @@ final class ClaudeService: ObservableObject {
     func claudeNotification(title: String, text: String) {
         let t = (title + " " + text).lowercased()
         guard Self.attentionWords.contains(where: { t.contains($0) }) || t.contains("frage") || t.contains("question") else { return }
-        // Zeigt die Insel die Anfrage schon an, braucht es keinen zweiten Hinweis
-        guard permission == nil else { return }
-        showAttention(subtitle: text.isEmpty ? title : text, chat: title)
+        // Kurz warten: meist erkennt die Insel die Anfrage selbst (dann mit Knöpfen) – nur wenn nicht, Hinweis zeigen
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+            guard let self, self.permission == nil,
+                  Date().timeIntervalSince(self.lastPromptAt) > 30,
+                  Date().timeIntervalSince(self.answeredAt) > 30 else { return }
+            self.showAttention(subtitle: text.isEmpty ? title : text, chat: title)
+        }
     }
 
     func finish(_ state: ClaudeTask.State, silent: Bool = false, title: String? = nil) {

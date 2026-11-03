@@ -226,7 +226,9 @@ extension ClaudeService {
             }
             return
         }
+        lastPromptAt = Date()
         if p.key.hasPrefix("ext|") {
+            answeredAt = Date()
             replyExternal(p, option)
             permission = nil
             haptic()
@@ -264,9 +266,8 @@ extension ClaudeService {
                 tint: option.role == .deny ? .red : .green,
                 title: option.label, subtitle: "an Claude gesendet", trailing: option.role == .deny ? .none : .check, duration: 1.8))
         } else if option.id >= 0 && !permissionIsDemo {
-            AppInfo.activate(Const.claudeBundle)
-            IslandModel.shared.show(Toast(symbol: "exclamationmark.triangle.fill", tint: .orange,
-                                          title: "Bitte direkt in Claude bestätigen", duration: 3))
+            // Nur wenn die Antwort nicht ankam: Hinweis mit Sprung zum richtigen Chat
+            showAttention(subtitle: "„\(option.label)“ hat nicht geklappt – bitte im Chat bestätigen", chat: nil)
         }
         permissionIsDemo = false
         IslandModel.shared.setNeedsRecompute()
@@ -309,6 +310,7 @@ extension ClaudeService {
         // Die gerade gezeigte Anfrage bleibt stehen, solange es sie noch gibt
         let pick = all.first(where: { $0.prompt.key == permission?.key }) ?? all[0]
         permissionElements = pick.elements
+        lastPromptAt = Date()
         if let w = pick.window { attentionWindow = w }
         if permission?.key != pick.prompt.key {
             permission = pick.prompt
