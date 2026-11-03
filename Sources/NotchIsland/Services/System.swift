@@ -541,7 +541,7 @@ final class DockBadgeMonitor: ObservableObject {
             guard now > before, AppInfo.frontmost != b.bundleID else { continue }
             // Kann Notch Island Mitteilungen direkt lesen, ist der Zähler überflüssig („7 neue Mitteilungen“ doppelt)
             if NotificationDBMonitor.shared.available && Prefs.on(Prefs.showBanners) { continue }
-            if Opt.mutedApps.contains(b.bundleID) { continue }
+            if !Opt.notificationsAllowed(b.bundleID) { continue }
             let diff = now - before
             // Kurz warten: kommt in der Zeit die eigentliche Mitteilung (Banner), entfällt der Zähler-Hinweis
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {

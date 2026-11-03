@@ -351,7 +351,7 @@ struct SetupView: View {
         let path = Bundle.main.bundlePath
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/bash")
-        p.arguments = ["-c", "sleep 1; open \"\(path)\""]
+        p.arguments = ["-c", "sleep 1; open \"$0\"", path]
         try? p.run()
         NSApp.terminate(nil)
     }

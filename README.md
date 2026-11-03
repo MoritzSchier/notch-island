@@ -12,7 +12,7 @@
 |---|---|
 | 🎵 **Musik & Videos** | Spotify, Apple Music, YouTube in Chrome – Cover, Titel, Fortschritt, Steuerung, Lautstärke, Klangwellen |
 | 📞 **Anrufe** | WhatsApp, Discord, FaceTime/iPhone, Zoom, Teams, Slack, Telegram, Browser-Calls – mit Dauer und Stummschalten |
-| 💬 **Mitteilungen** | wie am iPhone: Absender + erste Zeilen, gestapelt pro App – WhatsApp, Mail, Chrome, Nachrichten …; auch im Fokus-Modus |
+| 💬 **Mitteilungen** | wie am iPhone: Absender + erste Zeilen, gestapelt pro App; auch im Fokus-Modus. Standardmäßig nur wichtige Apps: WhatsApp, Nachrichten, Telegram, Signal, Threema, Messenger, Discord, Slack, Teams, Zoom, Webex, Mail, Outlook, Spark, Airmail, Thunderbird, Mimestream, Canary, Proton Mail, Superhuman, Chrome/Safari, FaceTime, Kalender, Fantastical, Erinnerungen – weitere einzeln zuschaltbar |
 | ✨ **Claude** | Live-Fortschritt mit Schritten, „Antwort bereit“, **Erlaubnis-Anfragen und Rückfragen direkt in der Insel beantworten**, Nutzungslimit |
 | ⏱ **Timer & Stoppuhr** | mit Alarm, +1 Min, Stopp |
 | 📂 **Ablage (Dropzone)** | Dateien auf die Notch ziehen → ablegen, teilen, AirDrop, ZIP, **konvertieren** (PDF, DOCX, JPEG, PNG, HEIC, MP4, MOV, MP3 …) und **verkleinern** |
@@ -72,6 +72,7 @@ Mitteilungen erscheinen nur, wenn die jeweilige App in *Systemeinstellungen › 
 - **Claude Desktop** wird automatisch erkannt (Bedienungshilfen nötig): Fortschritt, „Claude ist fertig“, Erlaubnis-Anfragen und **Rückfragen mit Auswahl** („Welchen Weg möchtest du?“) erscheinen in der Insel – beantworten per Klick, auch wenn Claude im Vordergrund ist.
 - **MCP-Werkzeuge** `notch_status`, `notch_toast`, `notch_timer`: `build.sh` trägt sie in Claude Desktop ein (Claude danach einmal neu starten). Claude kann damit Schritte und Fortschritt live melden.
 - **Claude Code (Terminal):** Einrichtungsassistent oder Einstellungen › Claude › „Mit Claude Code verbinden“. Danach zeigt die Insel den Fortschritt aller Sitzungen, und **Erlaubnis-Anfragen erscheinen in der Notch – auch von mehreren Agenten gleichzeitig** („3 offen“, eine nach der anderen). „Im Terminal“ gibt die Frage an das Terminal zurück; antwortet niemand, fragt Claude Code nach 10 Minuten wie gewohnt im Terminal.
+- **Wenn sich eine Anfrage nicht auslesen lässt**, zeigt die Insel „Claude benötigt deine Aufmerksamkeit“ mit dem Knopf **Zum Chat**, der genau das richtige Claude-Fenster nach vorn holt.
 - **Mehrere Agenten / Fenster in Claude Desktop:** Alle sichtbaren Erlaubnis-Anfragen und Rückfragen werden gesammelt und nacheinander in der Insel gezeigt.
 - **Nutzungslimit:** im Claude-Tab auf „Anmelden“ klicken und sich einmal im kleinen Fenster bei claude.ai anmelden. Die App sieht dabei kein Passwort und speichert keine Zugangsdaten; sie liest nur die Nutzungswerte (inoffizielle Schnittstelle – kann sich ändern).
 - Eigene Skripte: `open "notchisland://claude?state=running&title=Build&progress=0.4"` (state: running, waiting, done, error)
@@ -79,6 +80,13 @@ Mitteilungen erscheinen nur, wenn die jeweilige App in *Systemeinstellungen › 
 ## Datenschutz
 
 Alles läuft lokal auf deinem Mac. Es gibt keine Analyse, kein Konto, keinen Server. Netzwerkzugriffe nur für: Website-Symbole (Google-Favicon-Dienst), YouTube-Vorschaubilder und – falls du dich anmeldest – die Claude-Nutzungsanzeige. Der Zwischenablage-Verlauf liegt nur im Arbeitsspeicher.
+
+## Sicherheit
+
+- Keine Server, kein Konto, keine Analyse. Mitteilungen und Claude-Anfragen bleiben auf dem Mac.
+- Antworten an Claude Code laufen über einen privaten Ordner (nur dein Benutzer, Rechte 0700) – nicht über systemweite Nachrichten, die andere Apps mitlesen oder fälschen könnten.
+- Updates werden nur über HTTPS von GitHub geladen und vor dem Austausch geprüft (richtige App, neuere Version).
+- Dateinamen werden in AppleScript-Befehlen maskiert; Hilfsprogramme bekommen Pfade nur als Argumente.
 
 ## Probleme?
 

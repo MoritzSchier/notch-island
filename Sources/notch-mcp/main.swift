@@ -105,21 +105,25 @@ if args.contains("--hook"), args.contains("permission") {
     let what = (ti["command"] as? String) ?? (ti["file_path"] as? String) ?? (ti["url"] as? String) ?? (ti["description"] as? String) ?? ""
     let project = (input["cwd"] as? String).map { ($0 as NSString).lastPathComponent }
     let id = UUID().uuidString
-    var decision: String?
-    let replyName = Notification.Name("notchisland.reply")
-    let obs = DistributedNotificationCenter.default().addObserver(forName: replyName, object: nil, queue: nil) { n in
-        guard let s = n.object as? String, let d = try? JSONSerialization.jsonObject(with: Data(s.utf8)) as? [String: Any],
-              d["id"] as? String == id else { return }
-        decision = d["decision"] as? String
+    // Privater Austauschordner (nur dieser Benutzer); Inhalt der Anfrage nie systemweit verschicken
+    let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/NotchIsland/hook")
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+    let reqURL = dir.appendingPathComponent("req-\(id).json")
+    let ansURL = dir.appendingPathComponent("ans-\(id)")
+    let req: [String: Any] = ["title": "Claude Code möchte „\(tool)“ verwenden" + (project.map { " · \($0)" } ?? ""),
+                              "detail": String(what.prefix(160)), "pid": Int(getpid())]
+    if let data = try? JSONSerialization.data(withJSONObject: req) {
+        FileManager.default.createFile(atPath: reqURL.path, contents: data, attributes: [.posixPermissions: 0o600])
     }
-    post(["kind": "permission", "id": id,
-          "title": "Claude Code möchte „\(tool)“ verwenden" + (project.map { " · \($0)" } ?? ""),
-          "detail": String(what.prefix(160))])
+    post(["kind": "permission", "id": id])
+    var decision: String?
     let deadline = Date().addingTimeInterval(590)
     while decision == nil && Date() < deadline {
         RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        if let d = try? String(contentsOf: ansURL, encoding: .utf8) { decision = d.trimmingCharacters(in: .whitespacesAndNewlines) }
     }
-    DistributedNotificationCenter.default().removeObserver(obs)
+    try? FileManager.default.removeItem(at: reqURL)
+    try? FileManager.default.removeItem(at: ansURL)
     guard let decision, decision == "allow" || decision == "deny" else {
         post(["kind": "permission_cancel", "id": id])
         RunLoop.current.run(until: Date().addingTimeInterval(0.15))

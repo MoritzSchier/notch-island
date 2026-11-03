@@ -54,6 +54,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ClaudeUsage.shared.start()
             RemindersService.shared.start()
             Updater.shared.start()
+            HookChannel.cleanup()
             _ = ShelfStore.shared
             DevBridge.log("Dienste gestartet")
             IslandModel.shared.bind()

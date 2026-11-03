@@ -29,6 +29,8 @@ enum PermissionScanner {
     struct Found {
         let prompt: PermissionPrompt
         let elements: [AXUIElement]
+        /// Claude-Fenster, in dem die Anfrage steht (für „Zum Chat“)
+        var window: AXUIElement? = nil
     }
 
     static func role(for label: String) -> PermissionPrompt.Option.Role? {
@@ -271,8 +273,12 @@ extension ClaudeService {
     }
 
     func openClaudeForPermission() {
+        if let p = permission, p.key.hasPrefix("ext|"), let o = p.options.first(where: { $0.role == .other }) {
+            respond(o)   // Claude Code: Frage zurück ans Terminal
+            return
+        }
         permission = nil
-        AppInfo.activate(Const.claudeBundle)
+        focusChat()
     }
 
     /// Alle offenen Anfragen (Erlaubnisse + Rückfragen aus allen Claude-Fenstern/Agenten + Claude-Code-Hooks).
@@ -303,6 +309,7 @@ extension ClaudeService {
         // Die gerade gezeigte Anfrage bleibt stehen, solange es sie noch gibt
         let pick = all.first(where: { $0.prompt.key == permission?.key }) ?? all[0]
         permissionElements = pick.elements
+        if let w = pick.window { attentionWindow = w }
         if permission?.key != pick.prompt.key {
             permission = pick.prompt
             DevBridge.log("\(pick.prompt.kind == .question ? "Rückfrage" : "Erlaubnis") erkannt (\(all.count) offen): \(pick.prompt.title) · Optionen: \(pick.prompt.options.map(\.label))")
@@ -323,8 +330,13 @@ extension ClaudeService {
                                            .init(id: 1, label: "Erlauben", role: .allow),
                                            .init(id: 2, label: "Im Terminal", role: .other)])
         externalPrompts.append(p)
-        // Nach 10 Minuten verfällt die Anfrage (der Hook gibt dann an das Terminal zurück)
+        // Nach 10 Minuten verfällt die Anfrage (der Hook gibt dann an das Terminal zurück).
+        // Wird im Terminal geantwortet, endet der Hook – dann verschwindet die Anfrage auch hier.
         DispatchQueue.main.asyncAfter(deadline: .now() + 600) { [weak self] in self?.dropExternal(id) }
+        Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] t in
+            guard let self, self.externalPrompts.contains(where: { $0.key == "ext|" + id }) else { t.invalidate(); return }
+            if !HookChannel.isAlive(id) { t.invalidate(); self.dropExternal(id) }
+        }
         applyPrompts(lastAXPrompts)
     }
 
@@ -336,8 +348,12 @@ extension ClaudeService {
     func replyExternal(_ p: PermissionPrompt, _ option: PermissionPrompt.Option) {
         let id = String(p.key.dropFirst(4))
         let decision = option.role == .allow ? "allow" : (option.role == .deny ? "deny" : "ask")
-        let json = "{\"id\":\"\(id)\",\"decision\":\"\(decision)\"}"
-        DistributedNotificationCenter.default().postNotificationName(Const.replyNotification, object: json, userInfo: nil, deliverImmediately: true)
+        // Antwort als Datei in einem privaten Ordner (nur dieser Benutzer) – nicht als systemweite Nachricht,
+        // damit keine andere App eine Erlaubnis „mitlesen“ oder fälschen kann.
+        if UUID(uuidString: id) != nil {
+            let f = HookChannel.dir.appendingPathComponent("ans-\(id)")
+            FileManager.default.createFile(atPath: f.path, contents: Data(decision.utf8), attributes: [.posixPermissions: 0o600])
+        }
         externalPrompts.removeAll { $0.key == p.key }
         DevBridge.log("Claude-Code-Antwort: \(decision)")
     }
@@ -373,6 +389,41 @@ extension ClaudeService {
             self.permissionIsDemo = false
             self.permission = nil
         }
+    }
+}
+
+/// Privater Austauschordner mit dem Claude-Code-Hook (notch-mcp --hook permission)
+enum HookChannel {
+    static let dir: URL = {
+        let d = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/NotchIsland/hook")
+        try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        return d
+    }()
+
+    /// Anfrage lesen, die der Hook abgelegt hat
+    /// Lebt der wartende Hook-Prozess noch? (Antwortet man im Terminal, beendet Claude Code ihn.)
+    static func isAlive(_ id: String) -> Bool {
+        guard let data = try? Data(contentsOf: dir.appendingPathComponent("req-\(id).json")),
+              let d = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return false }
+        guard let pid = (d["pid"] as? NSNumber)?.int32Value, pid > 0 else { return true }
+        return kill(pid, 0) == 0
+    }
+
+    /// Alte Reste (abgestürzte Hooks) aufräumen
+    static func cleanup() {
+        let fm = FileManager.default
+        for f in (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey])) ?? [] {
+            let m = (try? f.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
+            if Date().timeIntervalSince(m) > 900 { try? fm.removeItem(at: f) }
+        }
+    }
+
+    static func request(_ id: String) -> (title: String, detail: String)? {
+        guard UUID(uuidString: id) != nil,
+              let data = try? Data(contentsOf: dir.appendingPathComponent("req-\(id).json")),
+              let d = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        return (String((d["title"] as? String ?? "Claude Code möchte etwas ausführen").prefix(140)),
+                String((d["detail"] as? String ?? "").prefix(200)))
     }
 }
 

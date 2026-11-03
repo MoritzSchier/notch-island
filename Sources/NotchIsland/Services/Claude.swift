@@ -129,9 +129,10 @@ final class ClaudeService: ObservableObject {
             DispatchQueue.main.async {
                 self.polling = false
                 // Eine offene Rückfrage zählt als "wartet" – nicht als fertig
-                self.applyDetection(r.generating || !r.questions.isEmpty)
+                self.applyDetection(r.generating || !r.questions.isEmpty || r.attentionWindow != nil)
                 self.lastAXPrompts = r.permissions + r.questions
                 self.applyPrompts(self.lastAXPrompts)
+                self.applyAttention(window: r.attentionWindow, text: r.attentionText)
             }
         }
     }
@@ -149,7 +150,20 @@ final class ClaudeService: ObservableObject {
     }
 
     /// Durchsucht die Fenster der Claude-App nach einem „Stopp“-Knopf (sichtbar, solange eine Antwort entsteht).
-    private func detectGenerating(pid: pid_t) -> (generating: Bool, permissions: [PermissionScanner.Found], questions: [PermissionScanner.Found]) {
+    struct Detection {
+        var generating = false
+        var permissions: [PermissionScanner.Found] = []
+        var questions: [PermissionScanner.Found] = []
+        /// Claude wartet auf etwas, das sich nicht auslesen ließ → Fenster, in dem es passiert
+        var attentionWindow: AXUIElement?
+        var attentionText: String?
+    }
+
+    static let attentionWords = ["stellt eine frage", "wartet auf", "braucht deine", "benötigt deine", "erlaubnis",
+                                 "asks a question", "asking a question", "waiting for", "needs your", "permission", "approval"]
+
+    /// Durchsucht die Fenster der Claude-App: „Stopp“-Knopf (Antwort entsteht), Erlaubnis-Dialoge, Rückfragen.
+    private func detectGenerating(pid: pid_t) -> Detection {
         let app = AXUIElementCreateApplication(pid)
         if !manualAX.contains(pid) {
             // Electron-Apps legen ihren Bedienungshilfen-Baum erst offen, wenn man darum bittet.
@@ -157,39 +171,122 @@ final class ClaudeService: ObservableObject {
             manualAX.insert(pid)
         }
         AXUIElementSetMessagingTimeout(app, 0.4)
-        guard let windows = AX.attr(app, kAXWindowsAttribute as String) as? [AXUIElement] else { return (false, [], []) }
-        var questions: [PermissionScanner.Found] = []
-        var stack = windows
+        var r = Detection()
+        guard let windows = AX.attr(app, kAXWindowsAttribute as String) as? [AXUIElement] else { return r }
         var visited = 0
-        var generating = false
-        var permCandidates: [AXUIElement] = []
         var labels: [String] = []
-        while let el = stack.popLast(), visited < 7000 {
-            visited += 1
-            let role = AX.string(el, kAXRoleAttribute as String)
-            if role == (kAXGroupRole as String), QuestionScanner.isCard(el) {
-                if let q = QuestionScanner.parse(el), !questions.contains(where: { $0.prompt.key == q.prompt.key }) { questions.append(q) }
-                continue
-            }
-            if role == (kAXButtonRole as String) {
-                let short = PermissionScanner.label(of: el)
-                let label = [AX.string(el, kAXDescriptionAttribute as String),
-                             AX.string(el, kAXTitleAttribute as String),
-                             AX.string(el, kAXHelpAttribute as String)]
-                    .compactMap { $0 }.joined(separator: " ").lowercased()
-                if !short.isEmpty && labels.count < 300 { labels.append(short) }
-                if !generating, !label.isEmpty, Self.stopWords.contains(where: { label.contains($0) }),
-                   !label.contains("aufnahme"), !label.contains("recording"), !label.contains("diktat") {
-                    generating = true
+        for win in windows {
+            var stack = [win]
+            var permCandidates: [AXUIElement] = []
+            var cardFailed = false
+            var statusHint: String?
+            while let el = stack.popLast(), visited < 9000 {
+                visited += 1
+                let role = AX.string(el, kAXRoleAttribute as String)
+                if role == (kAXGroupRole as String), QuestionScanner.isCard(el) {
+                    if let q = QuestionScanner.parse(el) {
+                        if !r.questions.contains(where: { $0.prompt.key == q.prompt.key }) { r.questions.append(q) }
+                    } else {
+                        cardFailed = true
+                    }
+                    continue
                 }
-                if PermissionScanner.role(for: short) != nil { permCandidates.append(el) }
-                continue
+                if role == (kAXButtonRole as String) {
+                    let short = PermissionScanner.label(of: el)
+                    let label = [AX.string(el, kAXDescriptionAttribute as String),
+                                 AX.string(el, kAXTitleAttribute as String),
+                                 AX.string(el, kAXHelpAttribute as String)]
+                        .compactMap { $0 }.joined(separator: " ").lowercased()
+                    if !short.isEmpty && labels.count < 300 { labels.append(short) }
+                    if !r.generating, !label.isEmpty, Self.stopWords.contains(where: { label.contains($0) }),
+                       !label.contains("aufnahme"), !label.contains("recording"), !label.contains("diktat") {
+                        r.generating = true
+                    }
+                    if PermissionScanner.role(for: short) != nil { permCandidates.append(el) }
+                    continue
+                }
+                // Statuszeilen wie „Stellt eine Frage“ / „Wartet auf Erlaubnis“
+                if statusHint == nil, AX.string(el, kAXSubroleAttribute as String) == "AXApplicationStatus" {
+                    for c in AX.children(el) {
+                        if let v = AX.string(c, kAXValueAttribute as String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                           Self.attentionWords.contains(where: { v.lowercased().contains($0) }) {
+                            statusHint = v
+                        }
+                    }
+                }
+                stack.append(contentsOf: AX.children(el))
             }
-            stack.append(contentsOf: AX.children(el))
+            var perms = permCandidates.isEmpty ? [] : PermissionScanner.buildAll(from: permCandidates)
+            for i in perms.indices { perms[i].window = win }
+            for i in r.questions.indices where r.questions[i].window == nil { r.questions[i].window = win }
+            r.permissions += perms
+            let unreadable = cardFailed || (!permCandidates.isEmpty && perms.isEmpty)
+            let questionsHere = !r.questions.isEmpty
+            if r.attentionWindow == nil, unreadable || (statusHint != nil && perms.isEmpty && !questionsHere) {
+                r.attentionWindow = win
+                r.attentionText = statusHint ?? "Claude wartet auf eine Antwort von dir"
+            }
         }
-        let found = permCandidates.isEmpty ? [] : PermissionScanner.buildAll(from: permCandidates)
         DispatchQueue.main.async { self.lastButtonLabels = labels }
-        return (generating, found, questions)
+        return r
+    }
+
+    // MARK: Aufmerksamkeit (Anfrage nicht auslesbar)
+
+    private var attentionShownAt = Date.distantPast
+    private var attentionKey = ""
+    var attentionWindow: AXUIElement?
+
+    /// Kann die genaue Anfrage nicht gelesen werden, zeigt die Insel zumindest:
+    /// „Claude benötigt deine Aufmerksamkeit“ – mit Knopf, der direkt zum richtigen Chat-Fenster springt.
+    private var attentionSince: Date?
+
+    func applyAttention(window: AXUIElement?, text: String?) {
+        guard let window, permission == nil else {
+            if window == nil { attentionKey = ""; attentionSince = nil }
+            return
+        }
+        // Erst melden, wenn der Zustand ein paar Sekunden anhält (kurz nach einer Antwort steht der Status noch kurz da)
+        if attentionSince == nil { attentionSince = Date() }
+        guard Date().timeIntervalSince(attentionSince ?? Date()) >= 3,
+              Date().timeIntervalSince(answeredAt) > 6 else { return }
+        attentionWindow = window
+        let title = AX.string(window, kAXTitleAttribute as String) ?? ""
+        let key = title + "|" + (text ?? "")
+        // pro Anfrage nur einmal melden (erneut nach 2 Minuten, falls noch offen)
+        guard key != attentionKey || Date().timeIntervalSince(attentionShownAt) > 120 else { return }
+        attentionKey = key
+        attentionShownAt = Date()
+        showAttention(subtitle: text, chat: title)
+    }
+
+    func showAttention(subtitle: String?, chat: String?) {
+        DevBridge.log("Aufmerksamkeit: \(subtitle ?? "") · \(chat ?? "")")
+        NSSound(named: "Funk")?.play()
+        let sub = [subtitle, (chat?.isEmpty == false && chat != "Claude") ? "Chat: \(chat!)" : nil].compactMap { $0 }.joined(separator: " · ")
+        IslandModel.shared.show(Toast(
+            symbol: "hand.raised.fill", tint: .claude, title: "Claude benötigt deine Aufmerksamkeit",
+            subtitle: sub.isEmpty ? "Im Chat antworten" : sub,
+            buttons: [ToastButton(title: "Zum Chat", tint: .claude) { [weak self] in self?.focusChat() }],
+            duration: 12, onTap: { [weak self] in self?.focusChat() }))
+    }
+
+    /// Holt genau das Claude-Fenster nach vorn, in dem die Anfrage steht.
+    func focusChat() {
+        if let w = attentionWindow {
+            AXUIElementPerformAction(w, kAXRaiseAction as CFString)
+            AXUIElementSetAttributeValue(w, kAXMainAttribute as CFString, kCFBooleanTrue)
+        }
+        AppInfo.activate(Const.claudeBundle)
+    }
+
+    /// Mitteilungen der Claude-App selbst (aus der Mitteilungsliste)
+    func claudeNotification(title: String, text: String) {
+        let t = (title + " " + text).lowercased()
+        guard Self.attentionWords.contains(where: { t.contains($0) }) || t.contains("frage") || t.contains("question") else { return }
+        // Zeigt die Insel die Anfrage schon an, braucht es keinen zweiten Hinweis
+        guard permission == nil else { return }
+        showAttention(subtitle: text.isEmpty ? title : text, chat: title)
     }
 
     func finish(_ state: ClaudeTask.State, silent: Bool = false, title: String? = nil) {
@@ -234,9 +331,9 @@ final class ClaudeService: ObservableObject {
         let kind = d["kind"] as? String ?? "claude"
         switch kind {
         case "permission":
-            if let id = d["id"] as? String {
-                addExternalPrompt(id: id, title: d["title"] as? String ?? "Claude Code möchte etwas ausführen",
-                                  detail: d["detail"] as? String ?? "")
+            // Inhalt liegt in einer privaten Datei – über die systemweite Nachricht kommt nur die Kennung
+            if let id = d["id"] as? String, let req = HookChannel.request(id) {
+                addExternalPrompt(id: id, title: req.title, detail: req.detail)
             }
         case "permission_cancel":
             if let id = d["id"] as? String { dropExternal(id) }

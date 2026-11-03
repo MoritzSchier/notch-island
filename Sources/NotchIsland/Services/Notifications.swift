@@ -39,7 +39,8 @@ final class NotificationBannerMonitor {
     }
 
     private func poll() {
-        guard Prefs.on(Prefs.showBanners), !busy, AXIsProcessTrusted(),
+        // Liest die App die Mitteilungsliste direkt, sind Banner überflüssig (spart Rechenzeit)
+        guard Prefs.on(Prefs.showBanners), !busy, !NotificationDBMonitor.shared.available, AXIsProcessTrusted(),
               let nc = NSRunningApplication.runningApplications(withBundleIdentifier: Self.ncBundle).first else { return }
         busy = true
         let pid = nc.processIdentifier
@@ -71,7 +72,12 @@ final class NotificationBannerMonitor {
         if let id = bundleID {
             recentApps[id] = now
             Opt.noteSeenApp(id)
-            if Opt.mutedApps.contains(id) { return }
+            // Claude meldet sich selbst über die Insel – eigene Mitteilungen nur, wenn Claude Aufmerksamkeit braucht
+            if id.lowercased() == Const.claudeBundle.lowercased() {
+                ClaudeService.shared.claudeNotification(title: rawTitle, text: text)
+                return
+            }
+            if !Opt.notificationsAllowed(id) { return }
         }
         let name = appName ?? bundleID.map { AppInfo.name($0) } ?? "Mitteilung"
         var sender = rawTitle.isEmpty ? name : rawTitle

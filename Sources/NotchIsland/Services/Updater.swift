@@ -38,6 +38,17 @@ final class Updater: ObservableObject {
         set { UserDefaults.standard.set(newValue.trimmingCharacters(in: .whitespaces), forKey: Self.repoKey); objectWillChange.send() }
     }
 
+    /// Nur „besitzer/repo“ mit erlaubten Zeichen – verhindert manipulierte Adressen
+    static func isValidRepo(_ s: String) -> Bool {
+        s.range(of: #"^[A-Za-z0-9-]{1,39}/[A-Za-z0-9._-]{1,100}$"#, options: .regularExpression) != nil
+    }
+
+    /// Downloads nur von GitHub selbst (inkl. dessen Download-Servern) und nur über HTTPS
+    static func isTrustedDownload(_ u: URL) -> Bool {
+        guard u.scheme == "https", let h = u.host?.lowercased() else { return false }
+        return h == "github.com" || h.hasSuffix(".githubusercontent.com")
+    }
+
     var available: Release? { if case .available(let r) = state { return r }; return nil }
 
     func start() {
@@ -53,7 +64,7 @@ final class Updater: ObservableObject {
 
     func check(silent: Bool = false) {
         let repo = repository
-        guard repo.split(separator: "/").count == 2 else { state = .notConfigured; return }
+        guard Self.isValidRepo(repo) else { state = .notConfigured; return }
         guard let url = URL(string: "https://api.github.com/repos/\(repo)/releases/latest") else { return }
         state = .checking
         var req = URLRequest(url: url)
@@ -74,8 +85,8 @@ final class Updater: ObservableObject {
                 let assets = obj["assets"] as? [[String: Any]] ?? []
                 let zip = assets.compactMap { a -> URL? in
                     guard let n = a["name"] as? String, n.lowercased().hasSuffix(".zip"),
-                          let u = a["browser_download_url"] as? String else { return nil }
-                    return URL(string: u)
+                          let s = a["browser_download_url"] as? String, let u = URL(string: s), Self.isTrustedDownload(u) else { return nil }
+                    return u
                 }.first
                 let page = URL(string: obj["html_url"] as? String ?? "") ?? URL(string: "https://github.com/\(repo)/releases")!
                 if Self.isNewer(tag, than: self.currentVersion), let zip {
@@ -116,9 +127,11 @@ final class Updater: ObservableObject {
         guard let r = available else { return }
         state = .downloading
         IslandModel.shared.show(Toast(symbol: "arrow.down.circle", tint: .blue, title: "Update wird geladen …", subtitle: r.version, duration: 4))
-        URLSession.shared.downloadTask(with: r.zipURL) { [weak self] tmp, _, err in
+        URLSession.shared.downloadTask(with: r.zipURL) { [weak self] tmp, resp, err in
             guard let self else { return }
-            guard let tmp, err == nil else {
+            let finalOK = resp?.url.map(Self.isTrustedDownload) ?? false
+            let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
+            guard let tmp, err == nil, finalOK, code == 200 else {
                 DispatchQueue.main.async { self.fail("Download fehlgeschlagen") }
                 return
             }
@@ -144,15 +157,21 @@ final class Updater: ObservableObject {
         let out = work.appendingPathComponent("x")
         guard run("/usr/bin/ditto", ["-x", "-k", zip.path, out.path]),
               let newApp = (try? FileManager.default.contentsOfDirectory(at: out, includingPropertiesForKeys: nil))?
-                .first(where: { $0.pathExtension == "app" }) else {
-            DispatchQueue.main.async { self.fail("Update-Datei ist beschädigt") }
+                .first(where: { $0.pathExtension == "app" }),
+              // Plausibilität: muss wirklich Notch Island sein
+              let info = NSDictionary(contentsOf: newApp.appendingPathComponent("Contents/Info.plist")),
+              info["CFBundleExecutable"] as? String == "NotchIsland",
+              FileManager.default.isExecutableFile(atPath: newApp.appendingPathComponent("Contents/MacOS/NotchIsland").path),
+              let newVersion = info["CFBundleShortVersionString"] as? String,
+              Self.isNewer(newVersion, than: currentVersion) else {
+            DispatchQueue.main.async { self.fail("Update-Datei ist ungültig oder nicht neuer") }
             return
         }
         // Gleiche Kennung wie die installierte App → Freigaben (Bedienungshilfen …) bleiben erhalten
         let id = Bundle.main.bundleIdentifier ?? "io.github.notchisland"
         _ = run("/usr/libexec/PlistBuddy", ["-c", "Set :CFBundleIdentifier \(id)", newApp.appendingPathComponent("Contents/Info.plist").path])
         let repo = repository
-        if !repo.isEmpty {
+        if Self.isValidRepo(repo) {
             _ = run("/usr/libexec/PlistBuddy", ["-c", "Set :NotchIslandRepository \(repo)", newApp.appendingPathComponent("Contents/Info.plist").path])
         }
         _ = run("/usr/bin/xattr", ["-cr", newApp.path])
@@ -165,19 +184,21 @@ final class Updater: ObservableObject {
         // Austausch erst, wenn diese App beendet ist – per kleinem Hilfsskript
         let target = Bundle.main.bundlePath
         let pid = ProcessInfo.processInfo.processIdentifier
+        // Pfade werden als Argumente übergeben (nicht in den Skripttext eingesetzt) – sicher bei Sonderzeichen
         let script = """
         #!/bin/bash
-        while kill -0 \(pid) 2>/dev/null; do sleep 0.2; done
-        rm -rf "\(target).old"
-        mv "\(target)" "\(target).old" && mv "\(newApp.path)" "\(target)" && rm -rf "\(target).old" || { [ -d "\(target).old" ] && mv "\(target).old" "\(target)"; }
-        open "\(target)"
-        rm -rf "\(work.path)"
+        PID="$1"; TARGET="$2"; NEW="$3"; WORK="$4"
+        while kill -0 "$PID" 2>/dev/null; do sleep 0.2; done
+        rm -rf "$TARGET.old"
+        if mv "$TARGET" "$TARGET.old" && mv "$NEW" "$TARGET"; then rm -rf "$TARGET.old"; else [ -d "$TARGET.old" ] && mv "$TARGET.old" "$TARGET"; fi
+        open "$TARGET"
+        rm -rf "$WORK"
         """
         let sh = work.appendingPathComponent("swap.sh")
         try? script.write(to: sh, atomically: true, encoding: .utf8)
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/bash")
-        p.arguments = [sh.path]
+        p.arguments = [sh.path, String(pid), target, newApp.path, work.path]
         do { try p.run() } catch {
             DispatchQueue.main.async { self.fail("Austausch fehlgeschlagen") }
             return

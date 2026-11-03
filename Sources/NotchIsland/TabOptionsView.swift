@@ -32,6 +32,8 @@ enum Opt {
     static let noteStack = "opt.note.stack"
     static let noteMuted = "opt.note.muted"
     static let noteSeen = "opt.note.seenApps"
+    static let noteOnlyImportant = "opt.note.onlyImportant"
+    static let noteExtra = "opt.note.extraApps"
     // Insel
     static let hoverDelay = "opt.hoverDelay"
 
@@ -43,7 +45,7 @@ enum Opt {
             colorHex: true, colorRGB: true, colorBin: true, colorHSL: true, colorSwiftUI: true,
             sysBattery: true, sysBluetooth: true, sysSliders: true,
             shelfMax: 60,
-            notePreview: true, noteDuration: 6.0, noteStack: true,
+            notePreview: true, noteDuration: 6.0, noteStack: true, noteOnlyImportant: true,
             hoverDelay: 0.16,
         ])
     }
@@ -72,6 +74,60 @@ enum Opt {
     static func noteSeenApp(_ id: String) {
         var s = seenApps
         if !s.contains(id) { s.append(id); seenApps = s }
+    }
+
+    /// Wichtige Apps für Mitteilungen (Nachrichten, Mail, Arbeit, Anrufe, Kalender). Alles andere nur auf Wunsch.
+    struct KnownApp { let ids: [String]; let name: String; let group: String }
+    static let importantApps: [KnownApp] = [
+        // Nachrichten
+        KnownApp(ids: ["net.whatsapp.WhatsApp", "desktop.WhatsApp", "WhatsApp"], name: "WhatsApp", group: "Nachrichten"),
+        KnownApp(ids: ["com.apple.MobileSMS"], name: "Nachrichten (iMessage/SMS)", group: "Nachrichten"),
+        KnownApp(ids: ["ru.keepcoder.Telegram", "org.telegram.desktop"], name: "Telegram", group: "Nachrichten"),
+        KnownApp(ids: ["org.whispersystems.signal-desktop"], name: "Signal", group: "Nachrichten"),
+        KnownApp(ids: ["ch.threema.threema-desktop", "ch.threema.work-desktop"], name: "Threema", group: "Nachrichten"),
+        KnownApp(ids: ["com.facebook.archon", "com.facebook.archon.developerID"], name: "Messenger", group: "Nachrichten"),
+        KnownApp(ids: ["com.hnc.Discord"], name: "Discord", group: "Nachrichten"),
+        // Arbeit
+        KnownApp(ids: ["com.tinyspeck.slackmacgap"], name: "Slack", group: "Arbeit"),
+        KnownApp(ids: ["com.microsoft.teams2", "com.microsoft.teams"], name: "Microsoft Teams", group: "Arbeit"),
+        KnownApp(ids: ["us.zoom.xos"], name: "Zoom", group: "Arbeit"),
+        KnownApp(ids: ["Cisco-Systems.Spark"], name: "Webex", group: "Arbeit"),
+        KnownApp(ids: ["com.google.Chrome"], name: "Google Chrome (Gmail, Meet …)", group: "Arbeit"),
+        KnownApp(ids: ["com.apple.Safari"], name: "Safari (Web-Mitteilungen)", group: "Arbeit"),
+        // Mail
+        KnownApp(ids: ["com.apple.mail"], name: "Mail", group: "Mail"),
+        KnownApp(ids: ["com.microsoft.Outlook"], name: "Outlook", group: "Mail"),
+        KnownApp(ids: ["com.readdle.SparkDesktop", "com.readdle.smartemail-Mac"], name: "Spark", group: "Mail"),
+        KnownApp(ids: ["it.bloop.airmail2"], name: "Airmail", group: "Mail"),
+        KnownApp(ids: ["org.mozilla.thunderbird"], name: "Thunderbird", group: "Mail"),
+        KnownApp(ids: ["com.mimestream.Mimestream"], name: "Mimestream", group: "Mail"),
+        KnownApp(ids: ["io.canarymail.mac", "io.canarymail.android"], name: "Canary Mail", group: "Mail"),
+        KnownApp(ids: ["ch.protonmail.desktop"], name: "Proton Mail", group: "Mail"),
+        KnownApp(ids: ["com.superhuman.electron"], name: "Superhuman", group: "Mail"),
+        // Anrufe & Termine
+        KnownApp(ids: ["com.apple.FaceTime"], name: "FaceTime", group: "Anrufe & Termine"),
+        KnownApp(ids: ["com.apple.iCal"], name: "Kalender", group: "Anrufe & Termine"),
+        KnownApp(ids: ["com.flexibits.fantastical2.mac"], name: "Fantastical", group: "Anrufe & Termine"),
+        KnownApp(ids: ["com.apple.reminders"], name: "Erinnerungen", group: "Anrufe & Termine"),
+    ]
+
+    static func knownApp(for id: String) -> KnownApp? {
+        let l = id.lowercased()
+        return importantApps.first { $0.ids.contains { $0.lowercased() == l } }
+    }
+
+    static var extraApps: Set<String> {
+        get { Set(UserDefaults.standard.stringArray(forKey: noteExtra) ?? []) }
+        set { UserDefaults.standard.set(Array(newValue), forKey: noteExtra) }
+    }
+
+    /// Soll eine Mitteilung dieser App in der Insel erscheinen?
+    static func notificationsAllowed(_ id: String) -> Bool {
+        let l = id.lowercased()
+        if mutedApps.contains(where: { $0.lowercased() == l }) { return false }
+        if knownApp(for: id) != nil { return true }
+        if extraApps.contains(where: { $0.lowercased() == l }) { return true }
+        return !on(noteOnlyImportant)
     }
 
     static let sounds = ["Glass", "Ping", "Hero", "Funk", "Submarine", "Purr", "Pop", "Blow", "Bottle", "Frog", "Morse", "Sosumi", "Tink", "Basso"]
@@ -177,12 +233,21 @@ struct TabOptionsView: View {
 
 /// Einstellungen › Mitteilungen
 struct NotificationOptionsView: View {
+    private func appLabel(_ id: String, _ name: String) -> some View {
+        HStack {
+            if let i = AppInfo.icon(id) { Image(nsImage: i).resizable().frame(width: 18, height: 18) }
+            Text(name)
+        }
+    }
+
     @AppStorage(Prefs.showBanners) private var showBanners = true
     @AppStorage(Prefs.showBadges) private var showBadges = true
     @AppStorage(Opt.notePreview) private var preview = true
     @AppStorage(Opt.noteDuration) private var duration = 6.0
     @AppStorage(Opt.noteStack) private var stack = true
     @State private var muted = Opt.mutedApps
+    @State private var extra = Opt.extraApps
+    @AppStorage(Opt.noteOnlyImportant) private var onlyImportant = true
     @State private var fullDisk = NotificationDBMonitor.path != nil
 
     var body: some View {
@@ -208,21 +273,43 @@ struct NotificationOptionsView: View {
                 }
             }
             Section {
-                if Opt.seenApps.isEmpty {
-                    Text("Sobald Mitteilungen kommen, kannst du hier einzelne Apps stummschalten.").foregroundStyle(.secondary)
+                Toggle("Nur wichtige Apps (Nachrichten, Mail, Arbeit, Termine)", isOn: $onlyImportant)
+            } footer: {
+                Text("So landet keine Werbung oder App-Spam (z. B. Shopping- oder Kleinanzeigen-Apps) in der Insel. Weitere Apps kannst du unten einzeln dazuschalten.")
+            }
+            ForEach(["Nachrichten", "Arbeit", "Mail", "Anrufe & Termine"], id: \.self) { group in
+                let apps = Opt.importantApps.filter { $0.group == group }.compactMap { k -> (String, Opt.KnownApp)? in
+                    guard let id = k.ids.first(where: { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) != nil }) else { return nil }
+                    return (id, k)
                 }
-                ForEach(Opt.seenApps, id: \.self) { id in
-                    Toggle(isOn: Binding(get: { !muted.contains(id) }, set: { on in
-                        if on { muted.remove(id) } else { muted.insert(id) }
-                        Opt.mutedApps = muted
-                    })) {
-                        HStack {
-                            if let i = AppInfo.icon(id) { Image(nsImage: i).resizable().frame(width: 18, height: 18) }
-                            Text(AppInfo.name(id))
+                if !apps.isEmpty {
+                    Section(group) {
+                        ForEach(apps, id: \.0) { id, k in
+                            Toggle(isOn: Binding(get: { !muted.contains(id) }, set: { on in
+                                if on { muted.remove(id) } else { muted.insert(id) }
+                                Opt.mutedApps = muted
+                            })) { appLabel(id, k.name) }
                         }
                     }
                 }
-            } header: { Text("Apps") }
+            }
+            let others = Opt.seenApps.filter { Opt.knownApp(for: $0) == nil && $0.lowercased() != Const.claudeBundle.lowercased() }
+            Section {
+                if others.isEmpty {
+                    Text("Sobald andere Apps Mitteilungen schicken, erscheinen sie hier.").foregroundStyle(.secondary)
+                }
+                ForEach(others, id: \.self) { id in
+                    Toggle(isOn: Binding(get: { onlyImportant ? extra.contains(id) : !muted.contains(id) }, set: { on in
+                        if onlyImportant {
+                            if on { extra.insert(id) } else { extra.remove(id) }
+                            Opt.extraApps = extra
+                        } else {
+                            if on { muted.remove(id) } else { muted.insert(id) }
+                            Opt.mutedApps = muted
+                        }
+                    })) { appLabel(id, AppInfo.name(id)) }
+                }
+            } header: { Text("Andere Apps") }
         }
         .formStyle(.grouped)
     }
