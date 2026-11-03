@@ -161,8 +161,12 @@ final class ClaudeService: ObservableObject {
         var attentionText: String?
     }
 
-    static let attentionWords = ["stellt eine frage", "wartet auf", "braucht deine", "benötigt deine", "erlaubnis",
-                                 "asks a question", "asking a question", "waiting for", "needs your", "permission", "approval"]
+    /// Nur eindeutige Formulierungen – Claudes Statuszeile zeigt sonst auch Gedanken wie
+    /// „Comparing … permissions“, die nichts mit dir zu tun haben.
+    static let attentionWords = ["stellt eine frage", "stellt dir eine frage", "benötigt deine eingabe", "braucht deine eingabe",
+                                 "wartet auf deine", "braucht deine erlaubnis", "benötigt deine erlaubnis", "benötigt deine zustimmung",
+                                 "asks a question", "asking you a question", "needs your input", "waiting for your",
+                                 "needs your permission", "needs your approval", "awaiting your"]
 
     /// Durchsucht die Fenster der Claude-App: „Stopp“-Knopf (Antwort entsteht), Erlaubnis-Dialoge, Rückfragen.
     private func detectGenerating(pid: pid_t) -> Detection {
@@ -224,7 +228,7 @@ final class ClaudeService: ObservableObject {
             r.permissions += perms
             let unreadable = cardFailed || (!permCandidates.isEmpty && perms.isEmpty)
             let questionsHere = !r.questions.isEmpty
-            if r.attentionWindow == nil, unreadable || (statusHint != nil && perms.isEmpty && !questionsHere) {
+            if r.attentionWindow == nil, unreadable || (statusHint != nil && perms.isEmpty && !questionsHere && !r.generating) {
                 r.attentionWindow = win
                 r.attentionText = statusHint ?? tr("Claude wartet auf eine Antwort von dir")
             }
@@ -258,7 +262,7 @@ final class ClaudeService: ObservableObject {
         let title = AX.string(window, kAXTitleAttribute as String) ?? ""
         let key = title + "|" + (text ?? "")
         // pro Anfrage nur einmal melden (erneut nach 2 Minuten, falls noch offen)
-        guard key != attentionKey || Date().timeIntervalSince(attentionShownAt) > 120 else { return }
+        guard key != attentionKey else { return }   // pro Anfrage nur einmal
         attentionKey = key
         attentionShownAt = Date()
         showAttention(subtitle: text, chat: title)
@@ -287,7 +291,7 @@ final class ClaudeService: ObservableObject {
     /// Mitteilungen der Claude-App selbst (aus der Mitteilungsliste)
     func claudeNotification(title: String, text: String) {
         let t = (title + " " + text).lowercased()
-        guard Self.attentionWords.contains(where: { t.contains($0) }) || t.contains("frage") || t.contains("question") else { return }
+        guard Self.attentionWords.contains(where: { t.contains($0) }) else { return }
         // Kurz warten: meist erkennt die Insel die Anfrage selbst (dann mit Knöpfen) – nur wenn nicht, Hinweis zeigen
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
             guard let self, self.permission == nil,

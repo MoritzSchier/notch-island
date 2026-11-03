@@ -12,7 +12,7 @@
 set -uo pipefail
 cd "$(dirname "$0")"
 
-VERSION="1.0.0"
+VERSION="1.0.1"
 BUNDLE_ID="io.github.notchisland"
 GITHUB_REPO=""          # z. B. "deinname/notch-island" – dort sucht die App nach Updates
 INSTALL_DIR="$HOME/Applications"
