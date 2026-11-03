@@ -1,0 +1,169 @@
+import AppKit
+import SwiftUI
+import ServiceManagement
+
+@main
+enum NotchIslandMain {
+    static let delegate = AppDelegate()
+
+    static func main() {
+        let app = NSApplication.shared
+        app.delegate = delegate
+        app.setActivationPolicy(.accessory)
+        app.run()
+    }
+}
+
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var controllers: [NotchWindowController] = []
+    private var statusItem: NSStatusItem?
+    private var settingsWindow: NSWindow?
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        NSAppleEventManager.shared().setEventHandler(
+            self, andSelector: #selector(handleURL(_:reply:)),
+            forEventClass: AEEventClass(kInternetEventClass), andEventID: AEEventID(kAEGetURL))
+    }
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        Prefs.registerDefaults()
+        DevBridge.log("didFinishLaunching")
+
+        buildWindows()
+        setupStatusItem()
+        setupEditMenu()
+        // Dienste erst nach dem ersten Bild starten – falls macOS nach Berechtigungen fragt, ist die Insel schon da.
+        DispatchQueue.main.async {
+            AudioProcessMonitor.shared.start()
+            CallMonitor.shared.start()
+            VolumeController.shared.start()
+            BrightnessMonitor.shared.start()
+            BatteryMonitor.shared.start()
+            BluetoothMonitor.shared.start()
+            CalendarService.shared.start()
+            MediaController.shared.start()
+            ClaudeService.shared.start()
+            DockBadgeMonitor.shared.start()
+            NotificationBannerMonitor.shared.start()
+            NotificationDBMonitor.shared.start()
+            DownloadMonitor.shared.start()
+            ClipboardHistory.shared.start()
+            CameraMonitor.shared.start()
+            AudioDevices.shared.start()
+            DragGuard.shared.start()
+            ClaudeUsage.shared.start()
+            RemindersService.shared.start()
+            _ = ShelfStore.shared
+            DevBridge.log("Dienste gestartet")
+            IslandModel.shared.bind()
+        }
+        DevBridge.start()
+
+        NotificationCenter.default.addObserver(self, selector: #selector(screensChanged),
+                                               name: NSApplication.didChangeScreenParametersNotification, object: nil)
+        DistributedNotificationCenter.default().addObserver(
+            self, selector: #selector(externalActivity(_:)),
+            name: Const.activityNotification, object: nil, suspensionBehavior: .deliverImmediately)
+
+        // Beim ersten Start automatisch bei der Anmeldung starten (abschaltbar in den Einstellungen)
+        if !UserDefaults.standard.bool(forKey: "didSetupLoginItem") {
+            UserDefaults.standard.set(true, forKey: "didSetupLoginItem")
+            try? SMAppService.mainApp.register()
+        }
+
+        // Begrüßung
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            IslandModel.shared.show(Toast(symbol: "sparkles", tint: .white, title: "Notch Island ist aktiv",
+                                          subtitle: "Zeige mit der Maus auf die Notch", duration: 3))
+        }
+    }
+
+    // MARK: Fenster
+
+    private func notchScreen() -> NSScreen? {
+        NotchWindowController.targetScreen(mouse: NSEvent.mouseLocation)
+            ?? NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.main ?? NSScreen.screens.first
+    }
+
+    private func buildWindows() {
+        controllers.forEach { $0.close() }
+        controllers = []
+        if let s = notchScreen() { controllers.append(NotchWindowController(screen: s)) }
+    }
+
+    @objc private func screensChanged() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.buildWindows() }
+    }
+
+    // MARK: Externe Ereignisse
+
+    @objc private func handleURL(_ event: NSAppleEventDescriptor, reply: NSAppleEventDescriptor) {
+        guard let s = event.paramDescriptor(forKeyword: keyDirectObject)?.stringValue, let url = URL(string: s) else { return }
+        ClaudeService.shared.handle(url: url)
+    }
+
+    @objc private func externalActivity(_ note: Notification) {
+        guard let json = note.object as? String, let data = json.data(using: .utf8),
+              let d = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+        DispatchQueue.main.async { ClaudeService.shared.handleExternal(d) }
+    }
+
+    // MARK: Menüleiste
+
+    /// Hintergrund-Apps haben keine Menüleiste – ohne „Bearbeiten“-Menü funktionieren
+    /// ⌘C / ⌘V / ⌘X / ⌘A / ⌘Z in Textfeldern nicht. Daher ein (unsichtbares) Hauptmenü mit diesen Befehlen.
+    private func setupEditMenu() {
+        let main = NSMenu()
+        let appItem = NSMenuItem()
+        let appMenu = NSMenu()
+        appMenu.addItem(withTitle: "Notch Island beenden", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appItem.submenu = appMenu
+        main.addItem(appItem)
+        let editItem = NSMenuItem()
+        let edit = NSMenu(title: "Bearbeiten")
+        edit.addItem(withTitle: "Widerrufen", action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = edit.addItem(withTitle: "Wiederholen", action: Selector(("redo:")), keyEquivalent: "z")
+        redo.keyEquivalentModifierMask = [.command, .shift]
+        edit.addItem(.separator())
+        edit.addItem(withTitle: "Ausschneiden", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        edit.addItem(withTitle: "Kopieren", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: "Einsetzen", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        edit.addItem(withTitle: "Alles auswählen", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editItem.submenu = edit
+        main.addItem(editItem)
+        NSApp.mainMenu = main
+    }
+
+    private func setupStatusItem() {
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        item.button?.image = NSImage(systemSymbolName: "capsule.fill", accessibilityDescription: "Notch Island")
+        item.button?.image?.isTemplate = true
+        let menu = NSMenu()
+        menu.addItem(withTitle: "Insel öffnen", action: #selector(openIsland), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Einstellungen …", action: #selector(openSettings), keyEquivalent: ",").target = self
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Notch Island beenden", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        item.menu = menu
+        statusItem = item
+    }
+
+    @objc private func openIsland() {
+        IslandModel.shared.expand()
+        IslandModel.shared.hold("menu", max: 8)
+    }
+
+    @objc func openSettings() {
+        IslandModel.shared.collapse()
+        if settingsWindow == nil {
+            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 540, height: 680),
+                             styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
+            w.title = "Notch Island"
+            w.isReleasedWhenClosed = false
+            w.contentView = NSHostingView(rootView: SettingsView())
+            w.center()
+            settingsWindow = w
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        settingsWindow?.makeKeyAndOrderFront(nil)
+    }
+}

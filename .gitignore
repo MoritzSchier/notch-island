@@ -1,0 +1,26 @@
+# Build
+.build/
+dist/
+*.xcodeproj/
+.swiftpm/
+
+# Lokale Einstellungen & Entwicklung (nie hochladen)
+local.env
+.devbridge
+.cmd
+.rebuild
+build.log
+runtime.log
+diag.sh
+diag.log
+snaps.sh
+last-crash.ips
+axtree.txt
+axwatch_*.txt
+nctree.txt
+ncwatch_*.txt
+Vorschau/
+Testdateien/
+*.tgz
+.installed-*
+.DS_Store

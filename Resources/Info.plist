@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key><string>de</string>
+    <key>CFBundleExecutable</key><string>NotchIsland</string>
+    <key>CFBundleIdentifier</key><string>__BUNDLE_ID__</string>
+    <key>CFBundleName</key><string>Notch Island</string>
+    <key>CFBundleDisplayName</key><string>Notch Island</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleShortVersionString</key><string>__VERSION__</string>
+    <key>CFBundleVersion</key><string>1</string>
+    <key>CFBundleIconFile</key><string>AppIcon</string>
+    <key>LSMinimumSystemVersion</key><string>14.0</string>
+    <key>LSUIElement</key><true/>
+    <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
+    <key>NSHighResolutionCapable</key><true/>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key><string>__BUNDLE_ID__</string>
+            <key>CFBundleURLSchemes</key><array><string>notchisland</string></array>
+        </dict>
+    </array>
+    <key>NSAppleEventsUsageDescription</key><string>Notch Island zeigt, was in Spotify, Musik und YouTube (Chrome) läuft, und steuert die Wiedergabe.</string>
+    <key>NSCalendarsFullAccessUsageDescription</key><string>Notch Island zeigt deinen nächsten Termin und einen Countdown vor Meetings.</string>
+    <key>NSCalendarsUsageDescription</key><string>Notch Island zeigt deinen nächsten Termin.</string>
+    <key>NSRemindersFullAccessUsageDescription</key><string>Notch Island zeigt deine nächste fällige Erinnerung.</string>
+    <key>NSRemindersUsageDescription</key><string>Notch Island zeigt deine nächste fällige Erinnerung.</string>
+    <key>NSCameraUsageDescription</key><string>Für den Spiegel in der Notch (nur solange er geöffnet ist).</string>
+    <key>NSBluetoothAlwaysUsageDescription</key><string>Notch Island zeigt an, wenn sich AirPods oder andere Bluetooth-Geräte verbinden.</string>
+    <key>NSDownloadsFolderUsageDescription</key><string>Notch Island zeigt laufende Downloads als Live-Aktivität und kann Dateien dorthin kopieren.</string>
+    <key>NSDesktopFolderUsageDescription</key><string>Zum Ablegen von Dateien per Drag &amp; Drop.</string>
+    <key>NSDocumentsFolderUsageDescription</key><string>Zum Ablegen von Dateien per Drag &amp; Drop.</string>
+</dict>
+</plist>

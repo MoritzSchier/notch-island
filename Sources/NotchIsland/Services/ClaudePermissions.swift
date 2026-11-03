@@ -1,0 +1,441 @@
+import AppKit
+import SwiftUI
+import ApplicationServices
+
+/// Eine Erlaubnis-Anfrage aus der Claude-App ("Einmal erlauben", "Immer erlauben", "Ablehnen" …),
+/// gespiegelt in die Notch. Die Knöpfe drücken über die Bedienungshilfen exakt die Knöpfe in Claude.
+struct PermissionPrompt: Equatable {
+    enum Kind { case permission, question }
+    struct Option: Identifiable, Equatable {
+        enum Role { case allow, always, deny, other }
+        let id: Int
+        let label: String
+        let role: Role
+        var detail: String = ""
+        var checked = false
+    }
+    var kind: Kind = .permission
+    let key: String
+    let title: String
+    let detail: String
+    let options: [Option]
+    /// Bei Rückfragen: Seite x von y (mehrere Fragen nacheinander)
+    var progress: String = ""
+    /// Mehrfachauswahl: Optionen umschalten, dann „Weiter/Absenden“
+    var multi = false
+}
+
+enum PermissionScanner {
+    struct Found {
+        let prompt: PermissionPrompt
+        let elements: [AXUIElement]
+    }
+
+    static func role(for label: String) -> PermissionPrompt.Option.Role? {
+        let l = label.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !l.isEmpty, l.count <= 40 else { return nil }
+        let deny = ["nicht erlauben", "nicht zulassen", "ablehnen", "verweigern", "abweisen", "deny", "decline",
+                    "don't allow", "dont allow", "do not allow", "reject", "disallow"]
+        let always = ["immer erlauben", "immer zulassen", "always allow", "allow always", "für diesen chat", "for this chat",
+                      "für diese unterhaltung", "for this conversation", "für diese sitzung", "for this session", "allow for", "dauerhaft"]
+        let allow = ["einmal erlauben", "allow once", "erlauben", "zulassen", "allow", "genehmigen", "approve", "bestätigen"]
+        if deny.contains(where: { l.contains($0) }) { return .deny }
+        if always.contains(where: { l.contains($0) }) { return .always }
+        if allow.contains(where: { l.contains($0) }) { return .allow }
+        return nil
+    }
+
+    static func label(of el: AXUIElement) -> String {
+        [AX.string(el, kAXTitleAttribute as String), AX.string(el, kAXDescriptionAttribute as String)]
+            .compactMap { $0 }.first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) ?? ""
+    }
+
+    /// Aus gefundenen Erlauben/Ablehnen-Knöpfen den gemeinsamen Dialog-Bereich bestimmen.
+    static func build(from candidates: [AXUIElement]) -> Found? {
+        guard let seed = candidates.first(where: { role(for: label(of: $0)) != .deny }) else { return nil }
+        var container = seed
+        for _ in 0..<7 {
+            guard let p = AX.attr(container, kAXParentAttribute as String),
+                  CFGetTypeID(p) == AXUIElementGetTypeID() else { break }
+            container = p as! AXUIElement   // Typ oben geprüft
+            var buttons: [(AXUIElement, String, PermissionPrompt.Option.Role)] = []
+            var texts: [String] = []
+            var stack = [container]
+            var visited = 0
+            while let el = stack.popLast(), visited < 500 {
+                visited += 1
+                let r = AX.string(el, kAXRoleAttribute as String) ?? ""
+                if r == (kAXButtonRole as String) {
+                    if let enabled = AX.attr(el, kAXEnabledAttribute as String) as? Bool, !enabled { continue }
+                    let l = label(of: el)
+                    if let role = role(for: l) { buttons.append((el, l, role)) }
+                    continue
+                }
+                if r == (kAXStaticTextRole as String), let v = AX.string(el, kAXValueAttribute as String) {
+                    let t = v.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if t.count > 2 && !t.hasSuffix(":") && !texts.contains(t) { texts.append(t) }
+                }
+                stack.append(contentsOf: AX.children(el).reversed())
+            }
+            let hasAllow = buttons.contains { $0.2 == .allow || $0.2 == .always }
+            let hasDeny = buttons.contains { $0.2 == .deny }
+            if hasAllow && hasDeny {
+                // gleiche Beschriftungen nur einmal
+                var seen = Set<String>()
+                let unique = buttons.filter { seen.insert($0.1.lowercased()).inserted }.prefix(4)
+                let options = unique.enumerated().map { PermissionPrompt.Option(id: $0.offset, label: $0.element.1, role: $0.element.2) }
+                let labels = Set(unique.map { $0.1 })
+                let info = texts.filter { !labels.contains($0) }
+                let title = info.first.map { String($0.prefix(90)) } ?? "Claude braucht deine Erlaubnis"
+                let detail = info.dropFirst().prefix(3).joined(separator: " · ")
+                let key = options.map(\.label).joined(separator: "|")
+                return Found(prompt: PermissionPrompt(key: key, title: title, detail: String(detail.prefix(180)), options: options),
+                             elements: unique.map { $0.0 })
+            }
+        }
+        return nil
+    }
+}
+
+/// Rückfragen von Claude („Claude hat dir 3 Fragen gestellt“ – Karte über dem Eingabefeld).
+/// Erkannt an der Karte mit der CSS-Klasse „--cds-question-row-h“ (sprachunabhängig).
+enum QuestionScanner {
+    static func isCard(_ el: AXUIElement) -> Bool {
+        guard AX.string(el, kAXSubroleAttribute as String) == "AXApplicationGroup" else { return false }
+        let dom = (AX.attr(el, "AXDOMClassList") as? [String])?.joined(separator: " ") ?? ""
+        return dom.contains("cds-question-row-h")
+    }
+
+    private static let navWords = ["vorherige", "nächste", "minimieren", "previous", "next question", "minimize", "collapse", "einklappen"]
+    private static let skipWords = ["überspringen", "skip"]
+
+    static func parse(_ card: AXUIElement) -> PermissionScanner.Found? {
+        var texts: [String] = []
+        var optionEls: [(AXUIElement, String, Bool)] = []
+        var skip: (AXUIElement, String)?
+        var extras: [(AXUIElement, String)] = []
+        var progress = ""
+        var stack = [card]
+        var visited = 0
+        while let el = stack.popLast(), visited < 400 {
+            visited += 1
+            let role = AX.string(el, kAXRoleAttribute as String) ?? ""
+            if role == (kAXCheckBoxRole as String) || role == (kAXRadioButtonRole as String) {
+                let l = PermissionScanner.label(of: el).trimmingCharacters(in: .whitespacesAndNewlines)
+                if !l.isEmpty {
+                    let on = (AX.attr(el, kAXValueAttribute as String) as? NSNumber)?.intValue == 1
+                    optionEls.append((el, l, on))
+                }
+                continue
+            }
+            if role == (kAXButtonRole as String) {
+                let l = PermissionScanner.label(of: el).trimmingCharacters(in: .whitespacesAndNewlines)
+                let low = l.lowercased()
+                if low.isEmpty || navWords.contains(where: { low.contains($0) }) { continue }
+                if skipWords.contains(where: { low.contains($0) }) { skip = (el, l) } else { extras.append((el, l)) }
+                continue
+            }
+            if role == (kAXTextFieldRole as String) || role == (kAXTextAreaRole as String) { continue }
+            if role == (kAXStaticTextRole as String),
+               let v = AX.string(el, kAXValueAttribute as String)?.trimmingCharacters(in: .whitespacesAndNewlines), !v.isEmpty {
+                if v.range(of: #"^\d+\s+(von|of)\s+\d+$"#, options: .regularExpression) != nil { progress = v }
+                else if !texts.contains(v) { texts.append(v) }
+            }
+            stack.append(contentsOf: AX.children(el).reversed())
+        }
+        guard !optionEls.isEmpty else { return nil }
+        var question = texts.first ?? ""
+        if question.isEmpty, let d = AX.string(card, kAXDescriptionAttribute as String) {
+            question = d.components(separatedBy: ". ").first ?? d
+        }
+        var options: [PermissionPrompt.Option] = []
+        var elements: [AXUIElement] = []
+        for (i, o) in optionEls.prefix(6).enumerated() {
+            let (label, detail) = split(o.1)
+            options.append(.init(id: i, label: label, role: .other, detail: detail, checked: o.2))
+            elements.append(o.0)
+        }
+        let multi = !extras.isEmpty
+        for e in extras.prefix(1) {
+            options.append(.init(id: options.count, label: e.1, role: .allow))
+            elements.append(e.0)
+        }
+        if let s = skip {
+            options.append(.init(id: options.count, label: s.1, role: .deny))
+            elements.append(s.0)
+        }
+        let key = "q|" + question + "|" + optionEls.map(\.1).joined(separator: "|")
+        let prompt = PermissionPrompt(kind: .question, key: key, title: String(question.prefix(140)),
+                                      detail: multi ? "Mehrere Antworten möglich" : "",
+                                      options: options, progress: progress, multi: multi)
+        return PermissionScanner.Found(prompt: prompt, elements: elements)
+    }
+
+    /// Beschriftung + Beschreibung stehen in Claude in einem Text („Gründlich Alles testen …“).
+    /// Trennen, wo es eindeutig geht: nach „(Recommended)“/„(Empfohlen)“ oder einem Doppelpunkt/Gedankenstrich.
+    static func split(_ s: String) -> (String, String) {
+        for marker in ["(Recommended)", "(Empfohlen)", " – ", " - ", ": "] {
+            if let r = s.range(of: marker) {
+                let head = s[..<(marker.hasPrefix("(") ? r.upperBound : r.lowerBound)].trimmingCharacters(in: .whitespaces)
+                let tail = s[r.upperBound...].trimmingCharacters(in: .whitespaces)
+                if !head.isEmpty && head.count <= 60 { return (head, tail) }
+            }
+        }
+        return (s, "")
+    }
+}
+
+extension ClaudeService {
+    /// Antwort aus der Notch → passenden Knopf in Claude drücken.
+    func respond(_ option: PermissionPrompt.Option) {
+        guard let p = permission else { return }
+        // Mehrfachauswahl: nur umschalten, Karte bleibt offen
+        if p.kind == .question, p.multi, option.role == .other {
+            if option.id < permissionElements.count {
+                _ = AXUIElementPerformAction(permissionElements[option.id], kAXPressAction as CFString)
+                var np = p
+                if let i = np.options.firstIndex(where: { $0.id == option.id }) {
+                    var o = np.options[i]; o.checked.toggle()
+                    var opts = np.options; opts[i] = o
+                    np = PermissionPrompt(kind: np.kind, key: np.key, title: np.title, detail: np.detail, options: opts, progress: np.progress, multi: true)
+                }
+                permission = np
+                haptic()
+            }
+            return
+        }
+        answeredKey = p.key
+        answeredAt = Date()
+        answeredLabel = option.label
+        retried = false
+        permission = nil
+        DevBridge.log("Antwort: \(option.label)")
+        let ok: Bool
+        if option.id < permissionElements.count {
+            ok = AXUIElementPerformAction(permissionElements[option.id], kAXPressAction as CFString) == .success
+        } else {
+            ok = false
+        }
+        permissionElements = []
+        haptic()
+        if ok && p.kind == .question {
+            // Nächste Frage wird gleich automatisch erkannt – nur kurze Bestätigung
+            if option.role != .deny {
+                IslandModel.shared.show(Toast(symbol: "checkmark.bubble.fill", tint: .green, title: option.label,
+                                              subtitle: "an Claude gesendet", trailing: .check, duration: 1.4))
+            }
+        } else if ok {
+            IslandModel.shared.show(Toast(
+                symbol: option.role == .deny ? "hand.raised.slash.fill" : "checkmark.shield.fill",
+                tint: option.role == .deny ? .red : .green,
+                title: option.label, subtitle: "an Claude gesendet", trailing: option.role == .deny ? .none : .check, duration: 1.8))
+        } else if option.id >= 0 && !permissionIsDemo {
+            AppInfo.activate(Const.claudeBundle)
+            IslandModel.shared.show(Toast(symbol: "exclamationmark.triangle.fill", tint: .orange,
+                                          title: "Bitte direkt in Claude bestätigen", duration: 3))
+        }
+        permissionIsDemo = false
+        IslandModel.shared.setNeedsRecompute()
+    }
+
+    func openClaudeForPermission() {
+        permission = nil
+        AppInfo.activate(Const.claudeBundle)
+    }
+
+    func applyPermission(_ found: PermissionScanner.Found?) {
+        guard !permissionIsDemo else { return }
+        guard let found else {
+            if permission != nil { permission = nil }
+            permissionElements = []
+            return
+        }
+        // gerade beantwortet → kurz ignorieren, bis Claude den Dialog geschlossen hat.
+        // Ist er nach 1,5 s immer noch da, kam der Klick nicht an → einmal erneut drücken.
+        if found.prompt.key == answeredKey, Date().timeIntervalSince(answeredAt) < 8 {
+            if !retried, Date().timeIntervalSince(answeredAt) > 1.5,
+               let i = found.prompt.options.firstIndex(where: { $0.label == answeredLabel }), i < found.elements.count {
+                retried = true
+                DevBridge.log("Wiederhole Klick: \(answeredLabel)")
+                _ = AXUIElementPerformAction(found.elements[i], kAXPressAction as CFString)
+            }
+            return
+        }
+        permissionElements = found.elements
+        if permission?.key != found.prompt.key {
+            permission = found.prompt
+            DevBridge.log("\(found.prompt.kind == .question ? "Rückfrage" : "Erlaubnis") erkannt: \(found.prompt.title) · Optionen: \(found.prompt.options.map(\.label))")
+            NSSound(named: "Funk")?.play()
+            haptic()
+        }
+    }
+
+    func demoQuestion() {
+        permissionIsDemo = true
+        permissionElements = []
+        permission = PermissionPrompt(kind: .question, key: "demoq", title: "Welchen Weg möchtest du gehen?",
+                                      detail: "Claude möchte wissen, wie es weitermachen soll",
+                                      options: [.init(id: 0, label: "Schnell & einfach", role: .other, detail: "Nur das Nötigste, in 5 Minuten fertig"),
+                                                .init(id: 1, label: "Gründlich", role: .other, detail: "Alles testen und dokumentieren"),
+                                                .init(id: 2, label: "Erst einen Plan zeigen", role: .other, detail: ""),
+                                                .init(id: 3, label: "Überspringen", role: .deny)], progress: "1 von 2")
+        IslandModel.shared.setNeedsRecompute()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in
+            guard let self, self.permissionIsDemo else { return }
+            self.permissionIsDemo = false
+            self.permission = nil
+        }
+    }
+
+    func demoPermission() {
+        permissionIsDemo = true
+        permissionElements = []
+        permission = PermissionPrompt(key: "demo", title: "Claude möchte „notch_status“ von notch-island verwenden",
+                                      detail: "Zeigt den Fortschritt einer Aufgabe in der Notch",
+                                      options: [.init(id: 0, label: "Ablehnen", role: .deny),
+                                                .init(id: 1, label: "Einmal erlauben", role: .allow),
+                                                .init(id: 2, label: "Immer erlauben", role: .always)])
+        IslandModel.shared.setNeedsRecompute()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in
+            guard let self, self.permissionIsDemo else { return }
+            self.permissionIsDemo = false
+            self.permission = nil
+        }
+    }
+}
+
+// MARK: - Ansicht in der Notch
+
+struct PermissionView: View {
+    @ObservedObject var claude = ClaudeService.shared
+    @ObservedObject var model = IslandModel.shared
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Color.clear.frame(height: model.notchSize.height - 2)
+            if let p = claude.permission {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .top, spacing: 11) {
+                        ZStack {
+                            Circle().fill(Color.claude.opacity(0.2))
+                            Image(systemName: p.kind == .question ? "questionmark.bubble.fill" : "lock.shield.fill")
+                                .font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.claude)
+                        }
+                        .frame(width: 34, height: 34)
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 6) {
+                                Text(p.kind == .question ? "Claude fragt" : "Claude braucht deine Erlaubnis")
+                                    .font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.claude)
+                                if !p.progress.isEmpty {
+                                    Text(p.progress).font(.system(size: 10, weight: .semibold).monospacedDigit())
+                                        .foregroundStyle(Color.dim)
+                                }
+                            }
+                            Text(p.title).font(.system(size: 13.5, weight: .semibold)).lineLimit(2)
+                            if !p.detail.isEmpty {
+                                Text(p.detail).font(.system(size: 11.5)).foregroundStyle(Color.dim).lineLimit(2)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                        Button { claude.openClaudeForPermission() } label: {
+                            Image(systemName: "arrow.up.forward.app").font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Color.dim).frame(width: 24, height: 24)
+                        }
+                        .buttonStyle(PressableStyle())
+                        .help(p.kind == .question ? "In Claude antworten (eigene Antwort)" : "In Claude ansehen")
+                    }
+                    if p.kind == .question {
+                        VStack(spacing: 5) {
+                            ForEach(p.options.filter { $0.role == .other }) { o in
+                                Button { claude.respond(o) } label: {
+                                    HStack(spacing: 9) {
+                                        if p.multi {
+                                            Image(systemName: o.checked ? "checkmark.square.fill" : "square")
+                                                .font(.system(size: 14, weight: .semibold))
+                                                .foregroundStyle(o.checked ? Color.claude : Color.dim)
+                                                .frame(width: 18, height: 18)
+                                        } else {
+                                            Text("\(o.id + 1)")
+                                                .font(.system(size: 10.5, weight: .bold).monospacedDigit())
+                                                .foregroundStyle(Color.claude)
+                                                .frame(width: 18, height: 18)
+                                                .background(Circle().fill(Color.claude.opacity(0.18)))
+                                        }
+                                        VStack(alignment: .leading, spacing: 1) {
+                                            Text(o.label).font(.system(size: 12.5, weight: .semibold)).lineLimit(o.detail.isEmpty ? 2 : 1)
+                                            if !o.detail.isEmpty {
+                                                Text(o.detail).font(.system(size: 10.5)).foregroundStyle(Color.dim).lineLimit(1)
+                                            }
+                                        }
+                                        Spacer(minLength: 0)
+                                        if !p.multi {
+                                            Image(systemName: "chevron.right").font(.system(size: 10, weight: .bold)).foregroundStyle(Color.dim)
+                                        }
+                                    }
+                                    .padding(.horizontal, 10).padding(.vertical, 6)
+                                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white.opacity(0.08)))
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(PressableStyle())
+                            }
+                            let actions = p.options.filter { $0.role != .other }
+                            if !actions.isEmpty {
+                                HStack(spacing: 8) {
+                                    Text("Eigene Antwort: Pfeil oben rechts").font(.system(size: 10)).foregroundStyle(Color.white.opacity(0.35))
+                                    Spacer(minLength: 0)
+                                    ForEach(actions) { o in
+                                        Button { claude.respond(o) } label: {
+                                            Text(o.label).font(.system(size: 11.5, weight: .semibold)).lineLimit(1)
+                                                .foregroundStyle(o.role == .allow ? Color.black : Color.white.opacity(0.75))
+                                                .padding(.horizontal, 12).padding(.vertical, 6)
+                                                .background(Capsule().fill(o.role == .allow ? Color.claude : Color.white.opacity(0.12)))
+                                                .contentShape(Capsule())
+                                        }
+                                        .buttonStyle(PressableStyle())
+                                    }
+                                }
+                                .padding(.top, 2)
+                            }
+                        }
+                    } else {
+                        HStack(spacing: 8) {
+                            Spacer(minLength: 0)
+                            ForEach(p.options) { o in
+                                Button { claude.respond(o) } label: {
+                                    Text(o.label)
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .lineLimit(1)
+                                        .foregroundStyle(fg(o.role))
+                                        .padding(.horizontal, 14).padding(.vertical, 8)
+                                        .background(Capsule().fill(bg(o.role)))
+                                        .contentShape(Capsule())
+                                }
+                                .buttonStyle(PressableStyle())
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 14)
+            }
+        }
+    }
+
+    private func bg(_ r: PermissionPrompt.Option.Role) -> Color {
+        switch r {
+        case .deny: return Color.white.opacity(0.12)
+        case .allow: return Color.white
+        case .always: return Color.claude
+        case .other: return Color.white.opacity(0.12)
+        }
+    }
+
+    private func fg(_ r: PermissionPrompt.Option.Role) -> Color {
+        switch r {
+        case .deny: return Color(red: 1, green: 0.45, blue: 0.42)
+        case .allow: return .black
+        case .always: return .black
+        case .other: return .white
+        }
+    }
+}
