@@ -134,6 +134,52 @@ enum Opt {
 }
 
 /// Einstellungen › Tabs: Sichtbarkeit + aufklappbare Optionen je Tab
+/// Sortierbare Tab-Liste: ziehen (Drag & Drop) oder Pfeile; Schalter blendet Tabs ein/aus.
+struct TabOrderList: View {
+    @ObservedObject private var model = IslandModel.shared
+    var showOptions: ((IslandTab) -> AnyView)? = nil
+    @State private var expanded: Set<IslandTab> = []
+
+    var body: some View {
+        List {
+            ForEach(model.orderedTabsAll) { t in
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "line.3.horizontal").foregroundStyle(.tertiary).help("Ziehen zum Sortieren")
+                        Toggle(isOn: Binding(get: { model.isVisible(t) }, set: { model.setVisible(t, $0) })) {
+                            Label(t.title, systemImage: t.icon)
+                        }
+                        .toggleStyle(.checkbox)
+                        .disabled(t == .home)
+                        Spacer()
+                        if showOptions != nil {
+                            Button { toggleExpanded(t) } label: {
+                                Label("Optionen", systemImage: expanded.contains(t) ? "chevron.up" : "slider.horizontal.3")
+                                    .labelStyle(.iconOnly)
+                            }
+                            .buttonStyle(.borderless).help("Optionen für diesen Tab")
+                        }
+                        Button { withAnimation { model.moveTab(t, by: -1) } } label: { Image(systemName: "arrow.up") }
+                            .buttonStyle(.borderless).disabled(model.orderedTabsAll.first == t).help("Nach vorne")
+                        Button { withAnimation { model.moveTab(t, by: 1) } } label: { Image(systemName: "arrow.down") }
+                            .buttonStyle(.borderless).disabled(model.orderedTabsAll.last == t).help("Nach hinten")
+                    }
+                    if expanded.contains(t), let opts = showOptions {
+                        opts(t).padding(.leading, 30).padding(.vertical, 4)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+            .onMove { from, to in withAnimation { model.moveTabs(fromOffsets: from, toOffset: to) } }
+        }
+        .listStyle(.inset(alternatesRowBackgrounds: true))
+    }
+
+    private func toggleExpanded(_ t: IslandTab) {
+        withAnimation { if expanded.contains(t) { expanded.remove(t) } else { expanded.insert(t) } }
+    }
+}
+
 struct TabOptionsView: View {
     @ObservedObject private var model = IslandModel.shared
     @AppStorage(Opt.homeMedia) private var homeMedia = true
@@ -159,28 +205,23 @@ struct TabOptionsView: View {
     @State private var expanded: Set<IslandTab> = []
 
     var body: some View {
-        Form {
-            Section {
-                ForEach(model.orderedTabsAll) { t in
-                    DisclosureGroup(isExpanded: Binding(get: { expanded.contains(t) }, set: { if $0 { expanded.insert(t) } else { expanded.remove(t) } })) {
-                        options(for: t).padding(.leading, 4).padding(.vertical, 2)
-                    } label: {
-                        Toggle(isOn: Binding(get: { model.isVisible(t) }, set: { model.setVisible(t, $0) })) {
-                            Label(t.title, systemImage: t.icon)
-                        }
-                        .disabled(t == .home)
-                    }
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "hand.draw.fill").font(.title2).foregroundStyle(Color.accentColor)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Tabs sortieren, ein- und ausblenden").font(.headline)
+                    Text("Zeilen mit der Maus an ☰ nach oben oder unten ziehen – oder die Pfeile nutzen. Häkchen = Tab wird angezeigt, Regler-Symbol = Optionen. Tipp: Auch direkt in der Insel kannst du Tabs per Drag & Drop verschieben.")
+                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
-            } header: {
-                Text("Schalter = Tab anzeigen · Pfeil = Optionen")
-            } footer: {
-                Text("„Start“ ist immer da. Die Reihenfolge änderst du direkt in der Insel per Drag & Drop.")
             }
-            Section {
-                Button("Reihenfolge zurücksetzen") { model.resetTabOrder() }
+            .padding(.horizontal, 20).padding(.top, 16)
+            TabOrderList(showOptions: { t in AnyView(VStack(alignment: .leading, spacing: 6) { options(for: t) }) })
+            HStack {
+                Spacer()
+                Button("Reihenfolge zurücksetzen") { withAnimation { model.resetTabOrder() } }
             }
+            .padding(.horizontal, 20).padding(.bottom, 14)
         }
-        .formStyle(.grouped)
     }
 
     @ViewBuilder private func options(for t: IslandTab) -> some View {

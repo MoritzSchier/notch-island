@@ -37,7 +37,7 @@ Auf Macs oder Monitoren ohne Notch kann auf Wunsch dauerhaft eine schwarze Notch
 ### Variante A – selbst bauen (empfohlen)
 
 ```bash
-git clone https://github.com/<DEIN-NAME>/notch-island.git
+git clone https://github.com/MoritzSchier/notch-island.git
 cd notch-island
 ./build.sh
 ```
@@ -97,7 +97,7 @@ Alles läuft lokal auf deinem Mac. Es gibt keine Analyse, kein Konto, keinen Ser
 ## Updates veröffentlichen
 
 1. In `build.sh` die `VERSION` erhöhen (z. B. `1.1.0`).
-2. `./build.sh --package` → erzeugt `dist/NotchIsland-1.1.0.zip` (Apple Silicon + Intel).
+2. `./build.sh --release` → erzeugt nur `dist/NotchIsland-1.1.0.zip` (Apple Silicon + Intel), ohne etwas zu installieren.
 3. Auf GitHub › Releases › „Draft a new release“ › Tag `v1.1.0` › die ZIP anhängen › veröffentlichen.
 
 Alle installierten Apps zeigen dann „Update verfügbar“. Die Update-Quelle wird beim Bauen automatisch aus dem Git-Remote (`origin`) übernommen; sonst in den Einstellungen › Update eintragen.
@@ -106,7 +106,7 @@ Alle installierten Apps zeigen dann „Update verfügbar“. Die Update-Quelle w
 
 `Entwicklung.command` baut bei jeder Änderung automatisch neu (Auslöser: Datei `.rebuild`).
 Optional `local.env` anlegen (wird nicht hochgeladen), z. B. `BUNDLE_ID=com.deinname.notchisland`.
-`./build.sh --package` erzeugt eine Universal-App (Apple Silicon + Intel) als ZIP in `dist/`.
+`./build.sh --release` erzeugt eine Universal-App (Apple Silicon + Intel) als ZIP in `dist/` (`--package` installiert zusätzlich).
 
 ## Lizenz
 
@@ -125,7 +125,7 @@ MIT – siehe [LICENSE](LICENSE). Nicht mit Apple oder Anthropic verbunden.
 
 **Install:**
 ```bash
-git clone https://github.com/<YOUR-NAME>/notch-island.git
+git clone https://github.com/MoritzSchier/notch-island.git
 cd notch-island && ./build.sh
 ```
 Or double-click `Installieren.command`. The app is installed to `~/Applications` and launches at login (can be disabled). Prebuilt zips in Releases are not notarized: right-click › Open on first launch.

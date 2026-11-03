@@ -4,6 +4,7 @@
 #   ./build.sh               baut für diesen Mac, installiert nach ~/Applications und startet
 #   ./build.sh --universal   baut für Apple Silicon UND Intel (eine App für alle Macs)
 #   ./build.sh --package     wie --universal, legt zusätzlich dist/NotchIsland-<Version>.zip an
+#   ./build.sh --release     nur die ZIP für GitHub bauen (installiert nichts)
 #
 # Optionale Einstellungen in einer Datei "local.env" (wird nicht mit hochgeladen), z. B.:
 #   BUNDLE_ID=com.deinname.notchisland
@@ -22,12 +23,13 @@ if [ -z "$GITHUB_REPO" ] && command -v git >/dev/null 2>&1; then
   GITHUB_REPO="$(printf '%s' "$ORIGIN" | sed -nE 's#.*github\.com[:/]([^/]+/[^/.]+)(\.git)?$#\1#p')"
 fi
 
-UNIVERSAL="${UNIVERSAL:-0}"; PACKAGE="${PACKAGE:-0}"
+UNIVERSAL="${UNIVERSAL:-0}"; PACKAGE="${PACKAGE:-0}"; RELEASE_ONLY="${RELEASE_ONLY:-0}"
 [ "$PACKAGE" = 1 ] && UNIVERSAL=1
 for a in "$@"; do
   case "$a" in
     --universal) UNIVERSAL=1 ;;
     --package) UNIVERSAL=1; PACKAGE=1 ;;
+    --release) UNIVERSAL=1; PACKAGE=1; RELEASE_ONLY=1 ;;
   esac
 done
 
@@ -98,6 +100,10 @@ if [ $PACKAGE = 1 ]; then
   rm -f "$ZIP"
   ditto -c -k --norsrc --noextattr --noacl --keepParent "dist/pkg/Notch Island.app" "$ZIP" && say "✓ Paket: $ZIP"
   rm -rf dist/pkg
+  if [ "$RELEASE_ONLY" = 1 ]; then
+    say "→ Jetzt auf GitHub › Releases › neues Release mit Tag v$VERSION anlegen und $ZIP anhängen."
+    echo "== FERTIG ==" >> "$LOG"; exit 0
+  fi
 fi
 
 pkill -x NotchIsland 2>/dev/null || true

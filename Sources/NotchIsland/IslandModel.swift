@@ -189,6 +189,25 @@ final class IslandModel: ObservableObject {
         UserDefaults.standard.set(o.map(\.rawValue), forKey: "tabOrder")
     }
 
+    /// Tab um eine Position nach oben (-1) oder unten (+1) schieben
+    func moveTab(_ t: IslandTab, by delta: Int) {
+        guard let i = tabOrder.firstIndex(of: t) else { return }
+        let j = i + delta
+        guard j >= 0, j < tabOrder.count else { return }
+        var o = tabOrder
+        o.swapAt(i, j)
+        tabOrder = o
+        UserDefaults.standard.set(o.map(\.rawValue), forKey: "tabOrder")
+    }
+
+    /// Für Listen mit Drag & Drop (onMove)
+    func moveTabs(fromOffsets: IndexSet, toOffset: Int) {
+        var o = tabOrder
+        o.move(fromOffsets: fromOffsets, toOffset: toOffset)
+        tabOrder = o
+        UserDefaults.standard.set(o.map(\.rawValue), forKey: "tabOrder")
+    }
+
     func resetTabOrder() {
         tabOrder = IslandTab.allCases
         UserDefaults.standard.removeObject(forKey: "tabOrder")

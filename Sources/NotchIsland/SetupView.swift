@@ -149,16 +149,11 @@ struct SetupView: View {
                 Label("Dein Mac hat eine Notch – die Insel nutzt sie direkt.", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
             }
             Text("Tabs").font(.headline).padding(.top, 6)
-            Text("Welche Tabs sollen in der aufgeklappten Insel erscheinen? Später änderbar unter Einstellungen › Tabs.")
+            Text("Häkchen = Tab wird angezeigt. Reihenfolge: Zeile an ☰ ziehen oder Pfeile nutzen – die oberste steht in der Insel ganz links. Später änderbar unter Einstellungen › Tabs oder direkt in der Insel per Drag & Drop.")
                 .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: 8) {
-                ForEach(IslandTab.allCases) { t in
-                    Toggle(isOn: Binding(get: { model.isVisible(t) }, set: { model.setVisible(t, $0) })) {
-                        Label(t.title, systemImage: t.icon)
-                    }
-                    .disabled(t == .home)
-                }
-            }
+            TabOrderList()
+                .frame(height: 300)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
             Toggle("Öffnen, sobald die Maus auf die Notch zeigt", isOn: $hoverToOpen).padding(.top, 6)
 
         case .accessibility:
