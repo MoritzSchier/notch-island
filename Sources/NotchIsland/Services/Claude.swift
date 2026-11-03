@@ -78,7 +78,16 @@ final class ClaudeService: ObservableObject {
     /// Wann zuletzt eine Anfrage in der Insel stand (gegen doppelte „Aufmerksamkeit“-Hinweise)
     var lastPromptAt = Date.distantPast
     /// Anfragen aus Claude-Code-Hooks (mehrere Terminals/Agenten möglich)
-    var externalPrompts: [PermissionPrompt] = []
+    var externalPrompts: [PermissionPrompt] = [] {
+        didSet {
+            let ids = Set(externalPrompts.compactMap(\.sessionId).filter { !$0.isEmpty })
+            if ids != pendingSessions { pendingSessions = ids }
+        }
+    }
+    /// Offene Hook-Anfragen mit ihrem Zustand (mehrseitige Rückfragen)
+    var codeRequests: [String: CodeRequest] = [:]
+    /// Sessions mit offener Anfrage in der Notch → Ampel rot
+    @Published var pendingSessions: Set<String> = []
     /// Zuletzt per Bedienungshilfen gefundene Anfragen
     var lastAXPrompts: [PermissionScanner.Found] = []
     /// Wie viele Anfragen gerade offen sind (alle Agenten zusammen)
@@ -346,9 +355,9 @@ final class ClaudeService: ObservableObject {
         switch kind {
         case "permission":
             // Inhalt liegt in einer privaten Datei – über die systemweite Nachricht kommt nur die Kennung
-            if let id = d["id"] as? String, let req = HookChannel.request(id) {
-                addExternalPrompt(id: id, title: req.title, detail: req.detail)
-            }
+            if let id = d["id"] as? String { addCodeRequest(id: id, kind: .permission) }
+        case "question":
+            if let id = d["id"] as? String { addCodeRequest(id: id, kind: .question) }
         case "permission_cancel":
             if let id = d["id"] as? String { dropExternal(id) }
         case "toast":

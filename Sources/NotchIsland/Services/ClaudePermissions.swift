@@ -23,6 +23,12 @@ struct PermissionPrompt: Equatable {
     var progress: String = ""
     /// Mehrfachauswahl: Optionen umschalten, dann „Weiter/Absenden“
     var multi = false
+    /// Claude-Code-Session, aus der die Anfrage kommt (für Ampel und Klick)
+    var sessionId: String? = nil
+    /// Name der Session für die Kopfzeile
+    var source = ""
+    /// Eigene Antwort per Textfeld möglich
+    var allowsText = false
 }
 
 enum PermissionScanner {
@@ -211,6 +217,10 @@ extension ClaudeService {
     /// Antwort aus der Notch → passenden Knopf in Claude drücken.
     func respond(_ option: PermissionPrompt.Option) {
         guard let p = permission else { return }
+        if p.key.hasPrefix("ext|") {
+            respondCode(p, option)
+            return
+        }
         // Mehrfachauswahl: nur umschalten, Karte bleibt offen
         if p.kind == .question, p.multi, option.role == .other {
             if option.id < permissionElements.count {
@@ -227,19 +237,6 @@ extension ClaudeService {
             return
         }
         lastPromptAt = Date()
-        if p.key.hasPrefix("ext|") {
-            answeredAt = Date()
-            replyExternal(p, option)
-            permission = nil
-            haptic()
-            if option.role != .other {
-                IslandModel.shared.show(Toast(symbol: option.role == .deny ? "hand.raised.slash.fill" : "checkmark.shield.fill",
-                                              tint: option.role == .deny ? .red : .green, title: option.label,
-                                              subtitle: "an Claude Code gesendet", duration: 1.6))
-            }
-            applyPrompts(lastAXPrompts)
-            return
-        }
         answeredKey = p.key
         answeredAt = Date()
         answeredLabel = option.label
@@ -276,8 +273,10 @@ extension ClaudeService {
     }
 
     func openClaudeForPermission() {
-        if let p = permission, p.key.hasPrefix("ext|"), let o = p.options.first(where: { $0.role == .other }) {
-            respond(o)   // Claude Code: Frage zurück ans Terminal
+        if let p = permission, p.key.hasPrefix("ext|") {
+            // Claude Code: Anfrage zurück ans Terminal
+            let back = p.options.first { $0.label == tr("Im Terminal") } ?? .init(id: 101, label: tr("Im Terminal"), role: .deny)
+            respondCode(p, back)
             return
         }
         permission = nil
@@ -326,40 +325,10 @@ extension ClaudeService {
 
     // MARK: Claude Code (Hook „PermissionRequest“)
 
-    /// Anfrage von notch-mcp --hook permission: wartet, bis in der Insel geantwortet wird.
-    func addExternalPrompt(id: String, title: String, detail: String) {
-        guard !externalPrompts.contains(where: { $0.key == "ext|" + id }) else { return }
-        let p = PermissionPrompt(key: "ext|" + id, title: title, detail: detail,
-                                 options: [.init(id: 0, label: tr("Ablehnen"), role: .deny),
-                                           .init(id: 1, label: tr("Erlauben"), role: .allow),
-                                           .init(id: 2, label: tr("Im Terminal"), role: .other)])
-        externalPrompts.append(p)
-        // Nach 10 Minuten verfällt die Anfrage (der Hook gibt dann an das Terminal zurück).
-        // Wird im Terminal geantwortet, endet der Hook – dann verschwindet die Anfrage auch hier.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 600) { [weak self] in self?.dropExternal(id) }
-        Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] t in
-            guard let self, self.externalPrompts.contains(where: { $0.key == "ext|" + id }) else { t.invalidate(); return }
-            if !HookChannel.isAlive(id) { t.invalidate(); self.dropExternal(id) }
-        }
-        applyPrompts(lastAXPrompts)
-    }
-
     func dropExternal(_ id: String) {
+        codeRequests[id] = nil
         externalPrompts.removeAll { $0.key == "ext|" + id }
         applyPrompts(lastAXPrompts)
-    }
-
-    func replyExternal(_ p: PermissionPrompt, _ option: PermissionPrompt.Option) {
-        let id = String(p.key.dropFirst(4))
-        let decision = option.role == .allow ? "allow" : (option.role == .deny ? "deny" : "ask")
-        // Antwort als Datei in einem privaten Ordner (nur dieser Benutzer) – nicht als systemweite Nachricht,
-        // damit keine andere App eine Erlaubnis „mitlesen“ oder fälschen kann.
-        if UUID(uuidString: id) != nil {
-            let f = HookChannel.dir.appendingPathComponent("ans-\(id)")
-            FileManager.default.createFile(atPath: f.path, contents: Data(decision.utf8), attributes: [.posixPermissions: 0o600])
-        }
-        externalPrompts.removeAll { $0.key == p.key }
-        DevBridge.log("Claude-Code-Antwort: \(decision)")
     }
 
     func demoQuestion() {
@@ -422,13 +391,6 @@ enum HookChannel {
         }
     }
 
-    static func request(_ id: String) -> (title: String, detail: String)? {
-        guard UUID(uuidString: id) != nil,
-              let data = try? Data(contentsOf: dir.appendingPathComponent("req-\(id).json")),
-              let d = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
-        return (String((d["title"] as? String ?? tr("Claude Code möchte etwas ausführen")).prefix(140)),
-                String((d["detail"] as? String ?? "").prefix(200)))
-    }
 }
 
 // MARK: - Ansicht in der Notch
@@ -451,8 +413,10 @@ struct PermissionView: View {
                         .frame(width: 34, height: 34)
                         VStack(alignment: .leading, spacing: 2) {
                             HStack(spacing: 6) {
-                                Text(p.kind == .question ? tr("Claude fragt") : tr("Claude braucht deine Erlaubnis"))
+                                Text((p.kind == .question ? tr("Claude fragt") : tr("Claude braucht deine Erlaubnis"))
+                                     + (p.source.isEmpty ? "" : " · " + p.source))
                                     .font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.claude)
+                                    .lineLimit(1)
                                 if claude.queueCount > 1 {
                                     Text("\(claude.queueCount) offen").font(.system(size: 10, weight: .bold))
                                         .foregroundStyle(.black).padding(.horizontal, 6).padding(.vertical, 1)
@@ -510,10 +474,15 @@ struct PermissionView: View {
                                 }
                                 .buttonStyle(PressableStyle())
                             }
+                            if p.allowsText {
+                                CodeAnswerField(promptKey: p.key + p.progress)
+                            }
                             let actions = p.options.filter { $0.role != .other }
                             if !actions.isEmpty {
                                 HStack(spacing: 8) {
-                                    Text(tr("Eigene Antwort: Pfeil oben rechts")).font(.system(size: 10)).foregroundStyle(Color.white.opacity(0.35))
+                                    if !p.allowsText {
+                                        Text(tr("Eigene Antwort: Pfeil oben rechts")).font(.system(size: 10)).foregroundStyle(Color.white.opacity(0.35))
+                                    }
                                     Spacer(minLength: 0)
                                     ForEach(actions) { o in
                                         Button { claude.respond(o) } label: {
@@ -569,5 +538,56 @@ struct PermissionView: View {
         case .always: return .black
         case .other: return .white
         }
+    }
+}
+
+
+/// Freitext-Antwort auf eine Rückfrage aus Claude Code (funktioniert auch mit Diktat, z. B. Wispr Flow).
+struct CodeAnswerField: View {
+    let promptKey: String
+    @ObservedObject var model = IslandModel.shared
+    @State private var text = ""
+    @FocusState private var focused: Bool
+    @State private var previousApp: NSRunningApplication?
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "text.cursor").font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.dim)
+            TextField(tr("Eigene Antwort …"), text: $text)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12.5))
+                .focused($focused)
+                .onSubmit(send)
+            Button(action: send) {
+                Image(systemName: "arrow.up.circle.fill").font(.system(size: 17))
+                    .foregroundStyle(text.trimmingCharacters(in: .whitespaces).isEmpty ? Color.white.opacity(0.25) : Color.claude)
+            }
+            .buttonStyle(.plain)
+            .disabled(text.trimmingCharacters(in: .whitespaces).isEmpty)
+        }
+        .padding(.horizontal, 10).padding(.vertical, 7)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white.opacity(0.08)))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .strokeBorder(focused ? Color.claude.opacity(0.7) : Color.clear, lineWidth: 1))
+        .contentShape(Rectangle())
+        .onTapGesture { focus() }
+        .onChange(of: promptKey) { _, _ in text = "" }
+    }
+
+    private func focus() {
+        let front = NSWorkspace.shared.frontmostApplication
+        if front?.bundleIdentifier != Bundle.main.bundleIdentifier { previousApp = front }
+        model.hostView?.window?.makeKey()
+        NSApp.activate(ignoringOtherApps: true)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { focused = true }
+    }
+
+    private func send() {
+        let t = text
+        text = ""
+        ClaudeService.shared.respondText(t)
+        // Fokus an die App zurückgeben, in der du vorher warst
+        previousApp?.activate()
+        previousApp = nil
     }
 }

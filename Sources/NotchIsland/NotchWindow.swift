@@ -115,7 +115,8 @@ final class NotchWindowController: NSObject {
         let p = model.presentation
         let s = model.outerSize(p)
         var rect = NSRect(x: f.midX - s.width / 2, y: f.maxY - s.height, width: s.width, height: s.height)
-        if model.secondary != nil { rect.size.width += model.notchSize.height + 10 }
+        // Blase rechts neben der Insel (Musik ist ein doppelt so breites Oval)
+        if let sec = model.secondary { rect.size.width += model.notchSize.height * (sec == .media ? 2 : 1) + 10 }
         let hot: NSRect
         switch p {
         case .idle: hot = rect.insetBy(dx: -12, dy: -6)

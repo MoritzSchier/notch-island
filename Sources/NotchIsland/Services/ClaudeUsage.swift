@@ -33,7 +33,43 @@ final class ClaudeUsage: NSObject, ObservableObject, WKNavigationDelegate {
     var session: Window? { windows.first { $0.key == "five_hour" } }
     var week: Window? { windows.first { $0.key == "seven_day" } }
 
+    /// Von der Claude-Code-Statusline geschrieben (rate_limits), braucht keinen Login.
+    static let localFile = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/notch/usage.json")
+
+    /// Werte aus der Statusline-Datei; nil, wenn es keine aktuellen gibt.
+    private func readLocal() -> [Window]? {
+        guard let data = try? Data(contentsOf: Self.localFile),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        let now = Date()
+        var list: [Window] = []
+        for key in ["five_hour", "seven_day"] {
+            guard let w = obj[key] as? [String: Any], let u = (w["used_percentage"] as? NSNumber)?.doubleValue else { continue }
+            let resets = (w["resets_at"] as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue) }
+            // abgelaufenes Fenster: Wert gilt nicht mehr
+            if let r = resets, r < now { continue }
+            list.append(Window(key: key, label: Self.label(key), short: Self.short(key), utilization: u, resetsAt: resets))
+        }
+        return list.isEmpty ? nil : list
+    }
+
+    private func applyLocal() -> Bool {
+        guard let list = readLocal() else { return false }
+        if list != windows { windows = list }
+        if state != .ok { state = .ok }
+        updatedAt = (try? Self.localFile.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+        return true
+    }
+
     func start() {
+        if timer == nil {
+            timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in self?.refresh() }
+        }
+        // Claude Code liefert die Limits selbst – dann kein claude.ai-Login nötig
+        if applyLocal() { return }
+        startWeb()
+    }
+
+    private func startWeb() {
         guard webView == nil else { return }
         let cfg = WKWebViewConfiguration()
         cfg.websiteDataStore = .default()
@@ -46,7 +82,6 @@ final class ClaudeUsage: NSObject, ObservableObject, WKNavigationDelegate {
         hostWindow.isReleasedWhenClosed = false
         state = .loading
         webView.load(URLRequest(url: URL(string: "https://claude.ai/")!))
-        timer = Timer.scheduledTimer(withTimeInterval: 120, repeats: true) { [weak self] _ in self?.refresh() }
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -79,7 +114,8 @@ final class ClaudeUsage: NSObject, ObservableObject, WKNavigationDelegate {
 
     /// Werte neu laden; `completion` wird spätestens nach 3 Sekunden aufgerufen.
     func refresh(completion: (() -> Void)? = nil) {
-        guard webView != nil else { completion?(); return }
+        if applyLocal() { completion?(); return }
+        guard webView != nil else { startWeb(); completion?(); return }
         guard pageReady else {
             if let completion { pending.append(completion) }
             return
@@ -168,7 +204,7 @@ final class ClaudeUsage: NSObject, ObservableObject, WKNavigationDelegate {
     // MARK: Anmelden
 
     func showLogin() {
-        start()
+        startWeb()
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 720),
                          styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
         w.title = tr("Bei Claude anmelden – nur für die Nutzungsanzeige")

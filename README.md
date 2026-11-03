@@ -56,8 +56,17 @@ For YouTube in Chrome, also enable *View › Developer › Allow JavaScript from
 ## Claude
 
 - **Claude Desktop** is detected automatically once Accessibility is allowed.
-- **Claude Code**: connect it in the setup assistant or under Settings › Claude. Permission requests from all sessions then show up in the notch. "In Terminal" hands a request back to the terminal; if you don't answer, Claude Code asks in the terminal as usual after 10 minutes.
-- **Usage limit**: click "Sign in" in the Claude tab and log in to claude.ai once. The app never sees your password; it only reads your usage numbers from an unofficial endpoint, so this may break if Anthropic changes it.
+- **Claude Code**: connect it in the setup assistant or under Settings › Claude. Then:
+  - **One traffic light per session**: a dot per running Claude Code session next to the notch (grey ready, yellow working, red waiting for you, green done). Hover or click the dots to open the Claude tab, which lists every session in two columns with its status, current tool, running subagents and latest prompt. Clicking a session brings its terminal to the front.
+  - **Permissions** from all sessions show up in the notch with the session name: Allow, Always allow (saves the rule Claude Code suggests, shown on the card), Deny or "In Terminal".
+  - **Questions** (`AskUserQuestion`) can be answered in the notch: options, multiple choice, several questions in a row and a free-text answer.
+  - The terminal waits while the notch asks. "In Terminal" hands a request back; if Notch Island isn't running, Claude Code asks in the terminal right away, and after 10 minutes without an answer it falls back to the terminal too.
+- **Usage limit**: easiest without any login: let your Claude Code status line write the limits for the notch. Add this to your status line script (it receives Claude Code's JSON on stdin as `$input`):
+  ```bash
+  rl=$(echo "$input" | jq -c '.rate_limits // empty')
+  [ -n "$rl" ] && printf '%s' "$rl" > ~/.claude/notch/usage.json
+  ```
+  Otherwise click "Sign in" in the Claude tab and log in to claude.ai once. The app never sees your password; it only reads your usage numbers from an unofficial endpoint, so this may break if Anthropic changes it.
 - From your own scripts: `open "notchisland://claude?state=running&title=Build&progress=0.4"`
 
 ## Privacy

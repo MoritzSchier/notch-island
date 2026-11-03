@@ -4,12 +4,12 @@ import Combine
 // MARK: - Datentypen
 
 enum ActivityKind: String, Equatable, CaseIterable {
-    case permission, ringing, call, timer, claude, media, meeting, download, camera, mic
+    case permission, ringing, call, timer, claude, sessions, media, meeting, download, camera, mic
 
     var tab: IslandTab {
         switch self {
         case .timer: return .timer
-        case .claude, .permission: return .claude
+        case .claude, .permission, .sessions: return .claude
         case .camera, .mic: return .widgets
         default: return .home
         }
@@ -230,6 +230,7 @@ final class IslandModel: ObservableObject {
         case .media: return 42
         case .timer: return 64
         case .claude: return 58
+        case .sessions: return max(34, CGFloat(min(SessionStore.shared.sessions.count, SessionDots.maxDots)) * 11 + 14)
         case .call: return 74
         case .meeting: return 72
         case .download: return 56
@@ -246,14 +247,17 @@ final class IslandModel: ObservableObject {
             if k == .ringing { return toastSize(large: true) }
             if k == .permission {
                 let p = ClaudeService.shared.permission
-                let head: CGFloat = p?.detail.isEmpty == false ? 72 : 56
+                var head: CGFloat = p?.detail.isEmpty == false ? 72 : 56
+                if p?.allowsText == true { head += 40 }
+                if (p?.title.count ?? 0) > 70 { head += 17 }
                 if p?.kind == .question {
                     let opts = p?.options ?? []
                     var rows = opts.filter { $0.role == .other }.reduce(CGFloat(0)) { $0 + ($1.detail.isEmpty && $1.label.count < 60 ? 31 : 41) }
                     if opts.contains(where: { $0.role != .other }) { rows += 34 }
                     return CGSize(width: max(notchSize.width + 360, 540), height: notchSize.height + head + rows + 14)
                 }
-                return CGSize(width: max(notchSize.width + 330, 520), height: notchSize.height + head + 36)
+                let wide = (p?.options.count ?? 0) > 3
+                return CGSize(width: max(notchSize.width + (wide ? 420 : 330), wide ? 620 : 520), height: notchSize.height + head + 36)
             }
             return CGSize(width: n.width + 2 * wing(k), height: n.height)
         case .toast(let t):
@@ -282,6 +286,12 @@ final class IslandModel: ObservableObject {
         case .timer: return CGSize(width: big, height: 210)
         case .claude:
             let strip: CGFloat = Opt.on(Opt.claudeUsage) ? 0 : 48
+            let count = SessionStore.shared.sessions.count
+            if count > 0 {
+                // Kopfzeile + Abstand oben + Liste + Abstände + Fußzeile (+ Nutzungsleiste), Fenster ist max. 380 hoch
+                let h = n.height + 10 + SessionsPanel.height(for: count) + 10 + 22 + 16 + 8 + (48 - strip) + (strip == 0 ? 10 : 0)
+                return CGSize(width: max(700, n.width + 480), height: min(h, 370))
+            }
             return ClaudeService.shared.current != nil ? CGSize(width: max(700, n.width + 480), height: 318 - strip) : CGSize(width: big, height: 282 - strip)
         case .web: return CGSize(width: big, height: WebFavorites.shared.rows > 1 ? 206 : 150)
         case .colors: return CGSize(width: max(680, n.width + 460), height: 214)
@@ -332,6 +342,7 @@ final class IslandModel: ObservableObject {
             CallMonitor.shared.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
             TimerService.shared.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
             ClaudeService.shared.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            SessionStore.shared.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
             CalendarService.shared.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
             DownloadMonitor.shared.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
             WebFavorites.shared.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
@@ -368,6 +379,7 @@ final class IslandModel: ObservableObject {
             if calls.active != nil { a.append(.call) }
         }
         if ClaudeService.shared.current != nil && ClaudeService.shared.isPrimary { a.append(.claude) }
+        if Prefs.on(Prefs.showSessions), SessionStore.shared.hasActivity { a.append(.sessions) }
         if TimerService.shared.hasActive { a.append(.timer) }
         if ClaudeService.shared.current != nil && !ClaudeService.shared.isPrimary { a.append(.claude) }
         if Prefs.on(Prefs.showMedia), MediaController.shared.now?.isPlaying == true { a.append(.media) }
@@ -472,7 +484,7 @@ final class IslandModel: ObservableObject {
             // Dokument zum Ziehen oder Hinweis mit Knöpfen (z. B. „Timer abgelaufen · Stopp“): nicht aufklappen,
             // sonst verschwinden die Knöpfe unter dem Mauszeiger.
             if case .toast(let t) = presentation, t.file != nil || !t.buttons.isEmpty { return }
-            let w = DispatchWorkItem { [weak self] in self?.expand() }
+            let w = DispatchWorkItem { [weak self] in self?.expand(tab: self?.hoverTab()) }
             hoverWork = w
             DispatchQueue.main.asyncAfter(deadline: .now() + max(0, Opt.double(Opt.hoverDelay)), execute: w)
         } else if isExpanded && !isHeld && !dropMode {
@@ -480,6 +492,27 @@ final class IslandModel: ObservableObject {
             hoverWork = w
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: w)
         }
+    }
+
+    /// Feste Tabs nur, wenn der Zeiger direkt auf den Ampeln (→ Claude) oder auf der Musik (→ Start mit Player)
+    /// steht. Sonst nil → normales Verhalten (zuletzt geöffneter Tab bzw. Standard).
+    func hoverTab() -> IslandTab? {
+        guard case .compact(let k) = presentation, let screen = hostView?.window?.screen else { return nil }
+        let dx = NSEvent.mouseLocation.x - screen.frame.midX
+        let half = outerSize(presentation).width / 2
+        let notchHalf = notchSize.width / 2
+        let t: IslandTab?
+        if dx > half {
+            t = secondary == .media ? .home : nil          // Blase rechts neben der Insel
+        } else if k == .sessions {
+            t = dx > notchHalf ? .claude : nil              // nur der rechte Flügel mit den Punkten
+        } else if k == .media {
+            t = abs(dx) > notchHalf ? .home : nil           // Cover links, Equalizer rechts
+        } else {
+            t = nil
+        }
+        DevBridge.log("Hover-Tab: \(String(describing: t)) (compact \(k), dx \(Int(dx)), half \(Int(half)))")
+        return t
     }
 
     func expand(tab t: IslandTab? = nil) {
@@ -493,7 +526,7 @@ final class IslandModel: ObservableObject {
 
     func collapse() {
         guard isExpanded else { return }
-        if !dropMode { lastTab = tab; lastTabAt = Date() }
+        if !dropMode { lastTab = tab }
         isExpanded = false
         pinned = false
         holds = []
@@ -551,19 +584,15 @@ final class IslandModel: ObservableObject {
         if !hovering && !isHeld { self.collapse() }
     }
 
-    /// Zuletzt benutzter Tab – wird 5 Minuten lang wieder geöffnet, danach gilt wieder der Standard.
+    /// Zuletzt benutzter Tab – wird beim normalen Öffnen wieder geöffnet (Claude ausgenommen).
     private var lastTab: IslandTab?
-    private var lastTabAt = Date.distantPast
 
+    /// Normales Öffnen: immer der zuletzt geöffnete Tab. Claude öffnet nur über die Ampel-Punkte (hoverTab),
+    /// war Claude zuletzt offen, geht es auf Start.
     private func defaultTab() -> IslandTab {
-        if ClaudeService.shared.isPrimary { return .claude }
-        if let t = lastTab, Date().timeIntervalSince(lastTabAt) < 300 { return t }
-        if let t = IslandTab(rawValue: UserDefaults.standard.string(forKey: Prefs.defaultTab) ?? "auto") { return t }
-        switch activities.first {
-        case .timer: return .timer
-        case .claude: return .claude
-        default: return .home
-        }
+        if let t = lastTab { return t == .claude ? .home : t }
+        if let t = IslandTab(rawValue: UserDefaults.standard.string(forKey: Prefs.defaultTab) ?? "auto"), t != .claude { return t }
+        return activities.first == .timer ? .timer : .home
     }
 
     func beginDrop() {

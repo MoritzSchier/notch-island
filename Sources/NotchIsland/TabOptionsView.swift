@@ -107,6 +107,7 @@ enum Opt {
         // Anrufe & Termine
         KnownApp(ids: ["com.apple.FaceTime"], name: "FaceTime", group: tr("Anrufe & Termine")),
         KnownApp(ids: ["com.apple.iCal"], name: tr("Kalender"), group: tr("Anrufe & Termine")),
+        KnownApp(ids: ["com.cron.electron"], name: "Notion Calendar", group: tr("Anrufe & Termine")),
         KnownApp(ids: ["com.flexibits.fantastical2.mac"], name: tr("Fantastical"), group: tr("Anrufe & Termine")),
         KnownApp(ids: ["com.apple.reminders"], name: tr("Erinnerungen"), group: tr("Anrufe & Termine")),
     ] }

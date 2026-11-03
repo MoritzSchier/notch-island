@@ -3,10 +3,13 @@ import AppKit
 
 struct ClaudeTabView: View {
     @ObservedObject var claude = ClaudeService.shared
+    @ObservedObject var sessions = SessionStore.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if let t = claude.current {
+            if !sessions.sessions.isEmpty {
+                SessionsPanel().frame(maxHeight: .infinity)
+            } else if let t = claude.current {
                 HStack(alignment: .top, spacing: 14) {
                     ClaudeTaskCard(task: t).frame(maxWidth: .infinity, maxHeight: .infinity)
                     ClaudeStepsView(task: t).frame(width: 250)

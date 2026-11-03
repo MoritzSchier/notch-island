@@ -26,7 +26,7 @@ struct IslandRootView: View {
             .frame(width: w, height: s.height)
             .overlay(alignment: .topTrailing) {
                 SecondaryBubble()
-                    .offset(x: model.notchSize.height + 8)
+                    .offset(x: model.notchSize.height * (model.secondary == .media ? 2 : 1) + 8)
             }
             .shadow(color: .black.opacity(shadowOpacity(p)), radius: p == .expanded ? 24 : 10, y: p == .expanded ? 10 : 4)
             // Ohne echte Notch: im Ruhezustand unsichtbar – außer „Notch simulieren“ ist an
@@ -91,7 +91,7 @@ struct CompactView: View {
             .padding(.horizontal, 9)
             .frame(height: model.notchSize.height)
             .contentShape(Rectangle())
-            .onTapGesture { model.expand(tab: kind.tab) }
+            .onTapGesture { model.expand(tab: model.hoverTab()) }
         }
     }
 }
@@ -114,7 +114,7 @@ struct CompactLeading: View {
                 }
             case .timer:
                 Image(systemName: "timer").foregroundStyle(.orange)
-            case .claude:
+            case .claude, .sessions:
                 ClaudeGlyph(size: small ? 12 : 14)
             case .meeting:
                 Image(systemName: "calendar").foregroundStyle(.red)
@@ -174,6 +174,8 @@ struct CompactTrailing: View {
                             .foregroundStyle(Color.claude)
                     }
                 }
+            case .sessions:
+                SessionDots()
             case .meeting:
                 TimelineView(.periodic(from: .now, by: 15)) { ctx in
                     Text(cal.soon.map { CalendarService.shortCountdown(to: $0.startDate, now: ctx.date) } ?? "")
@@ -221,21 +223,33 @@ struct ArtworkView: View {
 
 struct SecondaryBubble: View {
     @ObservedObject var model = IslandModel.shared
+    @ObservedObject var media = MediaController.shared
 
     var body: some View {
         let d = model.notchSize.height
-        ZStack {
+        let wide = model.secondary == .media
+        ZStack(alignment: .leading) {
             if let k = model.secondary {
-                Circle()
+                Capsule()
                     .fill(Color.black)
-                    .overlay(CompactLeading(kind: k, small: true))
-                    .frame(width: d, height: d)
+                    .overlay {
+                        if wide {
+                            // Musik: Cover plus laufender Equalizer im Oval
+                            HStack(spacing: 6) {
+                                CompactLeading(kind: k, small: true)
+                                AudioBars(color: media.tint, playing: media.now?.isPlaying ?? false, height: 11)
+                            }
+                        } else {
+                            CompactLeading(kind: k, small: true)
+                        }
+                    }
+                    .frame(width: wide ? d * 2 : d, height: d)
                     .id(k.rawValue)
                     .transition(.scale(scale: 0.2, anchor: .leading).combined(with: .opacity))
                     .onTapGesture { model.expand(tab: k.tab) }
             }
         }
-        .frame(width: d, height: d)
+        .frame(width: wide ? d * 2 : d, height: d, alignment: .leading)
         .animation(.spring(response: 0.45, dampingFraction: 0.7), value: model.secondary)
     }
 }

@@ -254,7 +254,7 @@ struct UpNextCard: View {
                             title: e.title ?? tr("Termin"), subtitle: CalendarService.describe(e, now: ctx.date),
                             join: CalendarService.joinURL(e))
                     }
-                    .onTapGesture { AppInfo.activate("com.apple.iCal") }
+                    .onTapGesture { CalendarService.openCalendarApp() }
                 }
                 if let d = sem.upcoming.first {
                     row(color: d.color, symbol: d.flagged ? "flag.fill" : "checklist",
@@ -446,7 +446,7 @@ struct NextEventCard: View {
                 .frame(height: 46)
             }
         }
-        .onTapGesture { AppInfo.activate("com.apple.iCal") }
+        .onTapGesture { CalendarService.openCalendarApp() }
     }
 }
 
