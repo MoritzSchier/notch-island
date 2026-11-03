@@ -104,8 +104,7 @@ Alle installierten Apps zeigen dann „Update verfügbar“. Die Update-Quelle w
 
 ## Entwickeln
 
-`Entwicklung.command` baut bei jeder Änderung automatisch neu (Auslöser: Datei `.rebuild`).
-Optional `local.env` anlegen (wird nicht hochgeladen), z. B. `BUNDLE_ID=com.deinname.notchisland`.
+`./build.sh` baut und installiert die App neu. Optional eine Datei `local.env` anlegen (wird nicht hochgeladen), z. B. `BUNDLE_ID=com.deinname.notchisland`.
 `./build.sh --release` erzeugt eine Universal-App (Apple Silicon + Intel) als ZIP in `dist/` (`--package` installiert zusätzlich).
 
 ## Lizenz
