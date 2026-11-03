@@ -75,6 +75,12 @@ final class ClaudeService: ObservableObject {
     var answeredLabel = ""
     var retried = false
     var permissionIsDemo = false
+    /// Anfragen aus Claude-Code-Hooks (mehrere Terminals/Agenten möglich)
+    var externalPrompts: [PermissionPrompt] = []
+    /// Zuletzt per Bedienungshilfen gefundene Anfragen
+    var lastAXPrompts: [PermissionScanner.Found] = []
+    /// Wie viele Anfragen gerade offen sind (alle Agenten zusammen)
+    @Published var queueCount = 0
     var lastButtonLabels: [String] = []
 
     private let queue = DispatchQueue(label: "notch.claude", qos: .utility)
@@ -112,7 +118,7 @@ final class ClaudeService: ObservableObject {
         guard Prefs.on(Prefs.detectClaude), trusted, !polling else { return }
         guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: Const.claudeBundle).first else {
             if current?.source == .desktop { finish(.done, silent: true) }
-            if permission != nil && !permissionIsDemo { permission = nil }
+            if !permissionIsDemo { lastAXPrompts = []; applyPrompts([]) }
             return
         }
         polling = true
@@ -123,8 +129,9 @@ final class ClaudeService: ObservableObject {
             DispatchQueue.main.async {
                 self.polling = false
                 // Eine offene Rückfrage zählt als "wartet" – nicht als fertig
-                self.applyDetection(r.generating || r.question != nil)
-                self.applyPermission(r.permission ?? r.question)
+                self.applyDetection(r.generating || !r.questions.isEmpty)
+                self.lastAXPrompts = r.permissions + r.questions
+                self.applyPrompts(self.lastAXPrompts)
             }
         }
     }
@@ -142,7 +149,7 @@ final class ClaudeService: ObservableObject {
     }
 
     /// Durchsucht die Fenster der Claude-App nach einem „Stopp“-Knopf (sichtbar, solange eine Antwort entsteht).
-    private func detectGenerating(pid: pid_t) -> (generating: Bool, permission: PermissionScanner.Found?, question: PermissionScanner.Found?) {
+    private func detectGenerating(pid: pid_t) -> (generating: Bool, permissions: [PermissionScanner.Found], questions: [PermissionScanner.Found]) {
         let app = AXUIElementCreateApplication(pid)
         if !manualAX.contains(pid) {
             // Electron-Apps legen ihren Bedienungshilfen-Baum erst offen, wenn man darum bittet.
@@ -150,8 +157,8 @@ final class ClaudeService: ObservableObject {
             manualAX.insert(pid)
         }
         AXUIElementSetMessagingTimeout(app, 0.4)
-        guard let windows = AX.attr(app, kAXWindowsAttribute as String) as? [AXUIElement] else { return (false, nil, nil) }
-        var question: PermissionScanner.Found?
+        guard let windows = AX.attr(app, kAXWindowsAttribute as String) as? [AXUIElement] else { return (false, [], []) }
+        var questions: [PermissionScanner.Found] = []
         var stack = windows
         var visited = 0
         var generating = false
@@ -160,8 +167,8 @@ final class ClaudeService: ObservableObject {
         while let el = stack.popLast(), visited < 7000 {
             visited += 1
             let role = AX.string(el, kAXRoleAttribute as String)
-            if question == nil, role == (kAXGroupRole as String), QuestionScanner.isCard(el) {
-                question = QuestionScanner.parse(el)
+            if role == (kAXGroupRole as String), QuestionScanner.isCard(el) {
+                if let q = QuestionScanner.parse(el), !questions.contains(where: { $0.prompt.key == q.prompt.key }) { questions.append(q) }
                 continue
             }
             if role == (kAXButtonRole as String) {
@@ -180,9 +187,9 @@ final class ClaudeService: ObservableObject {
             }
             stack.append(contentsOf: AX.children(el))
         }
-        let found = permCandidates.isEmpty ? nil : PermissionScanner.build(from: permCandidates)
+        let found = permCandidates.isEmpty ? [] : PermissionScanner.buildAll(from: permCandidates)
         DispatchQueue.main.async { self.lastButtonLabels = labels }
-        return (generating, found, question)
+        return (generating, found, questions)
     }
 
     func finish(_ state: ClaudeTask.State, silent: Bool = false, title: String? = nil) {
@@ -226,6 +233,13 @@ final class ClaudeService: ObservableObject {
     func handleExternal(_ d: [String: Any]) {
         let kind = d["kind"] as? String ?? "claude"
         switch kind {
+        case "permission":
+            if let id = d["id"] as? String {
+                addExternalPrompt(id: id, title: d["title"] as? String ?? "Claude Code möchte etwas ausführen",
+                                  detail: d["detail"] as? String ?? "")
+            }
+        case "permission_cancel":
+            if let id = d["id"] as? String { dropExternal(id) }
         case "toast":
             IslandModel.shared.show(Toast(symbol: d["icon"] as? String ?? "sparkle", tint: .claude,
                                           title: d["title"] as? String ?? "Hinweis",

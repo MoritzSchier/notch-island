@@ -38,7 +38,7 @@ if args.contains("--install-claude") {
     servers["notch-island"] = ["command": exe, "args": [String]()]
     cfg["mcpServers"] = servers
     do {
-        let out = try JSONSerialization.data(withJSONObject: cfg, options: [.prettyPrinted, .sortedKeys])
+        let out = try JSONSerialization.data(withJSONObject: cfg, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
         try out.write(to: cfgURL, options: .atomic)
         print("✓ Claude-Verbindung eingetragen: \(cfgURL.path)")
         exit(0)
@@ -48,7 +48,91 @@ if args.contains("--install-claude") {
     }
 }
 
+// MARK: Claude Code einrichten (Hooks in ~/.claude/settings.json eintragen)
+
+if args.contains("--install-claude-code") {
+    let exe = URL(fileURLWithPath: args[0]).standardizedFileURL.resolvingSymlinksInPath().path
+    let cmd = exe.replacingOccurrences(of: " ", with: "\\ ")
+    let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/settings.json")
+    try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+    var cfg: [String: Any] = [:]
+    if let raw = try? Data(contentsOf: url), !raw.isEmpty {
+        guard let obj = try? JSONSerialization.jsonObject(with: raw) as? [String: Any] else {
+            print("FEHLER: \(url.path) ist kein gültiges JSON – bitte von Hand prüfen.")
+            exit(1)
+        }
+        cfg = obj
+        try? raw.write(to: url.appendingPathExtension("backup"))
+    }
+    var hooks = cfg["hooks"] as? [String: Any] ?? [:]
+    let wanted: [(String, String, Int?)] = [("UserPromptSubmit", "running", nil), ("Notification", "waiting", nil),
+                                           ("Stop", "done", nil), ("PermissionRequest", "permission", 600)]
+    for (event, arg, timeout) in wanted {
+        var list = hooks[event] as? [[String: Any]] ?? []
+        // alte Einträge von Notch Island entfernen, dann neu eintragen
+        list = list.filter { group in
+            let hs = group["hooks"] as? [[String: Any]] ?? []
+            return !hs.contains { ($0["command"] as? String ?? "").contains("notch-mcp") }
+        }
+        var h: [String: Any] = ["type": "command", "command": "\(cmd) --hook \(arg)"]
+        if let timeout { h["timeout"] = timeout }
+        list.append(["hooks": [h]])
+        hooks[event] = list
+    }
+    cfg["hooks"] = hooks
+    do {
+        let out = try JSONSerialization.data(withJSONObject: cfg, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+        try out.write(to: url, options: .atomic)
+        print("✓ Claude Code verbunden: \(url.path)")
+        exit(0)
+    } catch {
+        print("FEHLER beim Schreiben: \(error)")
+        exit(1)
+    }
+}
+
 // MARK: Claude-Code-Hooks
+
+// Claude Code „PermissionRequest“-Hook: Frage in der Insel zeigen und auf die Antwort warten.
+// Antwortet niemand (oder „Im Terminal“), gibt der Hook nichts aus → Claude Code fragt wie gewohnt im Terminal.
+if args.contains("--hook"), args.contains("permission") {
+    var input: [String: Any] = [:]
+    if isatty(fileno(stdin)) == 0 {
+        input = (try? JSONSerialization.jsonObject(with: FileHandle.standardInput.readDataToEndOfFile()) as? [String: Any]) ?? [:]
+    }
+    let tool = input["tool_name"] as? String ?? "ein Werkzeug"
+    let ti = input["tool_input"] as? [String: Any] ?? [:]
+    let what = (ti["command"] as? String) ?? (ti["file_path"] as? String) ?? (ti["url"] as? String) ?? (ti["description"] as? String) ?? ""
+    let project = (input["cwd"] as? String).map { ($0 as NSString).lastPathComponent }
+    let id = UUID().uuidString
+    var decision: String?
+    let replyName = Notification.Name("notchisland.reply")
+    let obs = DistributedNotificationCenter.default().addObserver(forName: replyName, object: nil, queue: nil) { n in
+        guard let s = n.object as? String, let d = try? JSONSerialization.jsonObject(with: Data(s.utf8)) as? [String: Any],
+              d["id"] as? String == id else { return }
+        decision = d["decision"] as? String
+    }
+    post(["kind": "permission", "id": id,
+          "title": "Claude Code möchte „\(tool)“ verwenden" + (project.map { " · \($0)" } ?? ""),
+          "detail": String(what.prefix(160))])
+    let deadline = Date().addingTimeInterval(590)
+    while decision == nil && Date() < deadline {
+        RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+    }
+    DistributedNotificationCenter.default().removeObserver(obs)
+    guard let decision, decision == "allow" || decision == "deny" else {
+        post(["kind": "permission_cancel", "id": id])
+        RunLoop.current.run(until: Date().addingTimeInterval(0.15))
+        exit(0)   // keine Entscheidung → normale Abfrage im Terminal
+    }
+    var dec: [String: Any] = ["behavior": decision]
+    if decision == "deny" { dec["message"] = "In der Notch abgelehnt" }
+    let out: [String: Any] = ["hookSpecificOutput": ["hookEventName": "PermissionRequest", "decision": dec]]
+    if let data = try? JSONSerialization.data(withJSONObject: out) {
+        FileHandle.standardOutput.write(data)
+    }
+    exit(0)
+}
 
 if let i = args.firstIndex(of: "--hook") {
     let state = args.count > i + 1 ? args[i + 1] : "running"

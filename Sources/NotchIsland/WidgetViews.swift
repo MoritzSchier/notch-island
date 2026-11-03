@@ -108,7 +108,7 @@ struct BatteryDetailCard: View {
         Card {
             VStack(alignment: .leading, spacing: 7) {
                 HStack(spacing: 8) {
-                    BatteryIcon(level: battery.level, charging: battery.onAC, width: 30)
+                    BatteryIcon(level: battery.level, charging: battery.onAC && (battery.details?.chargingHW ?? battery.isCharging), width: 30)
                     Text("\(Int((battery.level * 100).rounded())) %").font(.system(size: 16, weight: .semibold).monospacedDigit())
                     Spacer(minLength: 0)
                     if let d = battery.details, abs(d.watts) >= 0.1 {
@@ -116,6 +116,7 @@ struct BatteryDetailCard: View {
                             Image(systemName: d.watts > 0 ? "bolt.fill" : "arrow.down")
                                 .font(.system(size: 10, weight: .bold))
                             Text(String(format: "%.1f W", abs(d.watts)))
+                                .help(d.watts > 0 ? "Ladeleistung in den Akku" : "Entnahme aus dem Akku")
                                 .font(.system(size: 13, weight: .semibold).monospacedDigit())
                         }
                         .foregroundStyle(d.watts > 0 ? Color.green : Color.orange)
@@ -128,6 +129,7 @@ struct BatteryDetailCard: View {
                         stat(health(d), "Zustand", color: d.health >= 0.8 ? .white : .orange)
                         stat("\(d.cycles)", "Zyklen")
                         if let t = d.temperature { stat(String(format: "%.0f °C", t), "Temp.") }
+                        if let s = d.systemWatts { stat(String(format: "%.0f W", s), "Verbrauch") }
                         if let a = d.adapterWatts, battery.onAC { stat("\(a) W", "Netzteil") }
                     }
                 }
@@ -140,6 +142,12 @@ struct BatteryDetailCard: View {
 
     private var statusLine: String {
         guard let d = battery.details else { return battery.statusText }
+        let pct = Int((battery.level * 100).rounded())
+        if battery.onAC && !d.chargingHW && d.watts <= 0.1 {
+            if battery.level >= 0.995 { return "Vollständig geladen" }
+            if d.notChargingReason != 0 { return "Ladepause bei \(pct) % · schont den Akku" }
+            return "Am Netzteil, lädt gerade nicht"
+        }
         if d.watts > 0.1 {
             if let m = d.minutesTo80 { return "Lädt · 80 % in ca. \(Self.hm(m))" }
             if d.aboveOrAt80 { return battery.minutesLeft.map { "Lädt · über 80 % · voll in ca. \(Self.hm($0))" } ?? "Lädt · über 80 %" }

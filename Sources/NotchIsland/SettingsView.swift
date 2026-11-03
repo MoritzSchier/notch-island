@@ -174,7 +174,7 @@ struct SettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
                 Button("Mit Claude Desktop verbinden (MCP-Werkzeug „notch_status“)") { connectClaude() }
                 if let claudeMessage { Text(claudeMessage).font(.caption).foregroundStyle(.secondary).textSelection(.enabled) }
-                Button("Claude-Code-Hooks in die Zwischenablage kopieren") { copyHooks() }
+                Button("Mit Claude Code verbinden (Terminal: Fortschritt & Erlaubnisse in der Notch)") { connectClaude(code: true) }
                 Button("Vorschau: Claude-Fortschritt abspielen") { ClaudeService.shared.demo() }
                 Button("Vorschau: Erlaubnis-Anfrage in der Notch") { ClaudeService.shared.demoPermission() }
                 Button("Vorschau: Rückfrage mit Auswahl") { ClaudeService.shared.demoQuestion() }
@@ -273,10 +273,10 @@ struct SettingsView: View {
         }
     }
 
-    private func connectClaude() {
+    private func connectClaude(code: Bool = false) {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: mcpPath)
-        task.arguments = ["--install-claude"]
+        task.arguments = [code ? "--install-claude-code" : "--install-claude"]
         let pipe = Pipe()
         task.standardOutput = pipe
         task.standardError = pipe
@@ -284,7 +284,7 @@ struct SettingsView: View {
             try task.run()
             task.waitUntilExit()
             let out = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-            claudeMessage = out.trimmingCharacters(in: .whitespacesAndNewlines) + "\nClaude Desktop einmal neu starten."
+            claudeMessage = out.trimmingCharacters(in: .whitespacesAndNewlines) + (code ? "\nNeue Claude-Code-Sitzungen nutzen es automatisch." : "\nClaude Desktop einmal neu starten.")
         } catch {
             claudeMessage = "Fehler: \(error.localizedDescription)"
         }

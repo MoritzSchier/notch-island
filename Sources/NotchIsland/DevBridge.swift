@@ -200,6 +200,27 @@ enum DevBridge {
                 }
             }
         case "settings": (NSApp.delegate as? AppDelegate)?.openSettings()
+        case "hooktest":
+            // hooktest <n> – startet n Claude-Code-Hook-Anfragen (wie von mehreren Agenten), Ausgabe in hookout_<i>.txt
+            let n = parts.count > 1 ? Int(parts[1]) ?? 1 : 1
+            for i in 1...max(1, n) {
+                let p = Process()
+                p.executableURL = URL(fileURLWithPath: Bundle.main.bundlePath + "/Contents/MacOS/notch-mcp")
+                p.arguments = ["--hook", "permission"]
+                let inPipe = Pipe()
+                p.standardInput = inPipe
+                let outURL = dir.appendingPathComponent("hookout_\(i).txt")
+                FileManager.default.createFile(atPath: outURL.path, contents: nil)
+                p.standardOutput = try? FileHandle(forWritingTo: outURL)
+                try? p.run()
+                let json = "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"npm test # Agent \(i)\"},\"cwd\":\"/tmp/projekt-\(i)\"}"
+                inPipe.fileHandleForWriting.write(json.data(using: .utf8)!)
+                try? inPipe.fileHandleForWriting.close()
+            }
+        case "answer":
+            // answer <Beschriftung> – drückt in der aktuellen Anfrage den Knopf mit dieser Beschriftung
+            let label = parts.dropFirst().joined(separator: " ")
+            if let o = ClaudeService.shared.permission?.options.first(where: { $0.label == label }) { ClaudeService.shared.respond(o) }
         case "selfax":
             let txt = AXDump.tree(AXUIElementCreateApplication(ProcessInfo.processInfo.processIdentifier), maxNodes: 600)
             try? txt.write(to: dir.appendingPathComponent("selfax.txt"), atomically: true, encoding: .utf8)

@@ -46,7 +46,19 @@ final class BatteryMonitor: ObservableObject {
         var cycles: Int
         var temperature: Double?   // °C
         var adapterWatts: Int?
-        var health: Double { designMAh > 0 ? Double(maxMAh) / Double(designMAh) : 0 }
+        /// Nennkapazität – daraus berechnet macOS die „Maximale Kapazität“ in den Systemeinstellungen
+        var nominalMAh: Int = 0
+        /// Gesamtverbrauch des Macs in Watt (aus der Strom-Telemetrie), falls verfügbar
+        var systemWatts: Double?
+        /// Lädt der Akku laut Lade-Controller wirklich?
+        var chargingHW = false
+        /// Grund, warum nicht geladen wird (≠ 0: z. B. Ladelimit/optimiertes Laden)
+        var notChargingReason = 0
+        var health: Double {
+            guard designMAh > 0 else { return 0 }
+            let base = nominalMAh > 0 ? nominalMAh : maxMAh
+            return min(1, Double(base) / Double(designMAh))
+        }
         /// Minuten bis 80 % (nur beim Laden, solange unter 80 %)
         var minutesTo80: Int? {
             guard amps > 0.05, maxMAh > 0 else { return nil }
@@ -107,9 +119,16 @@ final class BatteryMonitor: ObservableObject {
             let temp = (int("Temperature") ?? int("VirtualTemperature")).flatMap { $0 > 0 ? Double($0) / 100 : nil }
             var adapter: Int?
             if let ad = d["AdapterDetails"] as? [String: Any], let w = (ad["Watts"] as? NSNumber)?.intValue, w > 0 { adapter = w }
-            let det = BatteryDetails(watts: mv * ma / 1_000_000, volts: mv / 1000, amps: ma / 1000,
+            var det = BatteryDetails(watts: mv * ma / 1_000_000, volts: mv / 1000, amps: ma / 1000,
                                      currentMAh: cur, maxMAh: max, designMAh: design, cycles: int("CycleCount") ?? 0,
                                      temperature: temp, adapterWatts: adapter)
+            det.nominalMAh = bdInt("NominalChargeCapacity") ?? int("NominalChargeCapacity") ?? 0
+            if let tel = d["PowerTelemetryData"] as? [String: Any], let load = (tel["SystemLoad"] as? NSNumber)?.doubleValue, load > 0 {
+                det.systemWatts = load / 1000
+            }
+            let charger = d["ChargerData"] as? [String: Any] ?? [:]
+            det.chargingHW = ((d["IsCharging"] as? NSNumber)?.boolValue ?? (charger["IsCharging"] as? NSNumber)?.boolValue) ?? (ma > 0)
+            det.notChargingReason = (charger["NotChargingReason"] as? NSNumber)?.intValue ?? 0
             DispatchQueue.main.async { if self.details != det { self.details = det } }
         }
     }

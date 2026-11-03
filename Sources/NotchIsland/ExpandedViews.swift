@@ -57,14 +57,14 @@ struct HeaderBar: View {
                         Text("\(Int((battery.level * 100).rounded())) %")
                             .font(.system(size: 11, weight: .semibold).monospacedDigit())
                             .foregroundStyle(Color.white.opacity(0.7))
-                        BatteryIcon(level: battery.level, charging: battery.onAC, width: 22)
+                        BatteryIcon(level: battery.level, charging: battery.onAC && (battery.details?.chargingHW ?? battery.isCharging), width: 22)
                     }
                     .padding(.trailing, 4)
                 }
                 IconButton(symbol: model.pinned ? "pin.fill" : "pin", active: model.pinned, help: "Geöffnet lassen") {
                     model.pinned.toggle()
                 }
-                IconButton(symbol: "gearshape.fill", help: "Einstellungen") {
+                SettingsPill {
                     (NSApp.delegate as? AppDelegate)?.openSettings()
                 }
             }
@@ -543,5 +543,30 @@ struct QuickTiles: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(PressableStyle())
+    }
+}
+
+
+/// Gut sichtbarer Einstellungen-Knopf in der Kopfzeile (Symbol + Wort, hebt sich beim Zeigen hervor)
+struct SettingsPill: View {
+    var action: () -> Void
+    @State private var hover = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Image(systemName: "gearshape.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .rotationEffect(.degrees(hover ? 60 : 0))
+                Text("Einstellungen").font(.system(size: 11, weight: .semibold))
+            }
+            .foregroundStyle(hover ? Color.black : Color.white)
+            .padding(.horizontal, 10).padding(.vertical, 5)
+            .background(Capsule().fill(hover ? Color.white : Color.white.opacity(0.16)))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(PressableStyle())
+        .onHover { h in withAnimation(.easeOut(duration: 0.18)) { hover = h } }
+        .help("Einstellungen öffnen")
     }
 }

@@ -5,6 +5,8 @@ enum Const {
     static var bundleID: String { Bundle.main.bundleIdentifier ?? "io.github.notchisland" }
     /// Gemeinsamer Name mit dem MCP-Helfer (notch-mcp) – unabhängig von der Bundle-ID.
     static let activityNotification = Notification.Name("notchisland.activity")
+    /// Antwort der Insel an wartende Claude-Code-Hooks
+    static let replyNotification = Notification.Name("notchisland.reply")
     static let claudeBundle = "com.anthropic.claudefordesktop"
     static let spotify = "com.spotify.client"
     static let music = "com.apple.Music"

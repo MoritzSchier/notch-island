@@ -36,6 +36,7 @@ struct SetupView: View {
     @State private var automation: [String: AutomationStatus] = [:]
     @State private var claudeConnected = SetupView.claudeIsConnected()
     @State private var claudeMessage = ""
+    @State private var codeConnected = SetupView.claudeCodeIsConnected()
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
     private let tick = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -88,7 +89,7 @@ struct SetupView: View {
         case .accessibility: return ax
         case .notifications: return fullDisk
         case .calendar: return calendar && reminders
-        case .claude: return claudeConnected
+        case .claude: return claudeConnected && (codeConnected || !FileManager.default.fileExists(atPath: NSHomeDirectory() + "/.claude"))
         default: return false
         }
     }
@@ -209,6 +210,16 @@ struct SetupView: View {
                 if !claudeMessage.isEmpty { note(claudeMessage) }
                 note("Danach Claude einmal ganz beenden (⌘Q) und neu öffnen. Für Rückfragen in der Notch braucht es außerdem die Bedienungshilfen (Schritt 2).")
             }
+            if FileManager.default.fileExists(atPath: NSHomeDirectory() + "/.claude") {
+                Divider().padding(.vertical, 4)
+                Text("Claude Code (Terminal)").font(.headline)
+                Text("Zeigt Fortschritt aller Claude-Code-Sitzungen und lässt dich Erlaubnis-Anfragen – auch von mehreren Agenten gleichzeitig – in der Notch beantworten.")
+                    .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                status(codeConnected, "Verbunden", "Noch nicht verbunden")
+                if !codeConnected {
+                    Button("Mit Claude Code verbinden") { connectClaudeCode() }
+                }
+            }
 
         case .done:
             header("checkmark.seal.fill", "Fertig!", "Zeige mit der Maus auf die Notch – die Insel klappt auf.")
@@ -292,7 +303,20 @@ struct SetupView: View {
         } catch { claudeMessage = "Fehler: \(error.localizedDescription)" }
     }
 
+    private func connectClaudeCode() {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: Bundle.main.bundlePath + "/Contents/MacOS/notch-mcp")
+        p.arguments = ["--install-claude-code"]
+        try? p.run(); p.waitUntilExit()
+        codeConnected = Self.claudeCodeIsConnected()
+    }
+
     // MARK: Hilfen
+
+    static func claudeCodeIsConnected() -> Bool {
+        let u = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/settings.json")
+        return ((try? String(contentsOf: u, encoding: .utf8)) ?? "").contains("notch-mcp --hook permission")
+    }
 
     static func claudeIsConnected() -> Bool {
         let u = FileManager.default.homeDirectoryForCurrentUser

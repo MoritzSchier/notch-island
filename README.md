@@ -71,7 +71,8 @@ Mitteilungen erscheinen nur, wenn die jeweilige App in *Systemeinstellungen › 
 
 - **Claude Desktop** wird automatisch erkannt (Bedienungshilfen nötig): Fortschritt, „Claude ist fertig“, Erlaubnis-Anfragen und **Rückfragen mit Auswahl** („Welchen Weg möchtest du?“) erscheinen in der Insel – beantworten per Klick, auch wenn Claude im Vordergrund ist.
 - **MCP-Werkzeuge** `notch_status`, `notch_toast`, `notch_timer`: `build.sh` trägt sie in Claude Desktop ein (Claude danach einmal neu starten). Claude kann damit Schritte und Fortschritt live melden.
-- **Claude Code:** Einstellungen › „Claude-Code-Hooks kopieren“ und in `~/.claude/settings.json` einfügen.
+- **Claude Code (Terminal):** Einrichtungsassistent oder Einstellungen › Claude › „Mit Claude Code verbinden“. Danach zeigt die Insel den Fortschritt aller Sitzungen, und **Erlaubnis-Anfragen erscheinen in der Notch – auch von mehreren Agenten gleichzeitig** („3 offen“, eine nach der anderen). „Im Terminal“ gibt die Frage an das Terminal zurück; antwortet niemand, fragt Claude Code nach 10 Minuten wie gewohnt im Terminal.
+- **Mehrere Agenten / Fenster in Claude Desktop:** Alle sichtbaren Erlaubnis-Anfragen und Rückfragen werden gesammelt und nacheinander in der Insel gezeigt.
 - **Nutzungslimit:** im Claude-Tab auf „Anmelden“ klicken und sich einmal im kleinen Fenster bei claude.ai anmelden. Die App sieht dabei kein Passwort und speichert keine Zugangsdaten; sie liest nur die Nutzungswerte (inoffizielle Schnittstelle – kann sich ändern).
 - Eigene Skripte: `open "notchisland://claude?state=running&title=Build&progress=0.4"` (state: running, waiting, done, error)
 

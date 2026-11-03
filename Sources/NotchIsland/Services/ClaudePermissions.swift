@@ -50,6 +50,26 @@ enum PermissionScanner {
             .compactMap { $0 }.first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) ?? ""
     }
 
+    /// Alle offenen Erlaubnis-Dialoge (z. B. mehrere Agenten gleichzeitig) – jeder nur einmal.
+    static func buildAll(from candidates: [AXUIElement]) -> [Found] {
+        var out: [Found] = []
+        var consumed: [AXUIElement] = []
+        for seed in candidates where role(for: label(of: seed)) != .deny {
+            if consumed.contains(where: { CFEqual($0, seed) }) { continue }
+            consumed.append(seed)
+            guard let f = build(from: [seed]) else { continue }
+            consumed.append(contentsOf: f.elements)
+            let duplicate = out.contains { o in
+                o.prompt.key == f.prompt.key && f.elements.allSatisfy { e in o.elements.contains { x in CFEqual(x, e) } }
+            }
+            if !duplicate {
+                out.append(f)
+            }
+            if out.count >= 6 { break }
+        }
+        return out
+    }
+
     /// Aus gefundenen Erlauben/Ablehnen-Knöpfen den gemeinsamen Dialog-Bereich bestimmen.
     static func build(from candidates: [AXUIElement]) -> Found? {
         guard let seed = candidates.first(where: { role(for: label(of: $0)) != .deny }) else { return nil }
@@ -88,7 +108,7 @@ enum PermissionScanner {
                 let info = texts.filter { !labels.contains($0) }
                 let title = info.first.map { String($0.prefix(90)) } ?? "Claude braucht deine Erlaubnis"
                 let detail = info.dropFirst().prefix(3).joined(separator: " · ")
-                let key = options.map(\.label).joined(separator: "|")
+                let key = options.map(\.label).joined(separator: "|") + "|" + String(title.prefix(60))
                 return Found(prompt: PermissionPrompt(key: key, title: title, detail: String(detail.prefix(180)), options: options),
                              elements: unique.map { $0.0 })
             }
@@ -204,6 +224,18 @@ extension ClaudeService {
             }
             return
         }
+        if p.key.hasPrefix("ext|") {
+            replyExternal(p, option)
+            permission = nil
+            haptic()
+            if option.role != .other {
+                IslandModel.shared.show(Toast(symbol: option.role == .deny ? "hand.raised.slash.fill" : "checkmark.shield.fill",
+                                              tint: option.role == .deny ? .red : .green, title: option.label,
+                                              subtitle: "an Claude Code gesendet", duration: 1.6))
+            }
+            applyPrompts(lastAXPrompts)
+            return
+        }
         answeredKey = p.key
         answeredAt = Date()
         answeredLabel = option.label
@@ -243,31 +275,71 @@ extension ClaudeService {
         AppInfo.activate(Const.claudeBundle)
     }
 
-    func applyPermission(_ found: PermissionScanner.Found?) {
+    /// Alle offenen Anfragen (Erlaubnisse + Rückfragen aus allen Claude-Fenstern/Agenten + Claude-Code-Hooks).
+    /// Gezeigt wird immer eine; nach der Antwort kommt automatisch die nächste.
+    func applyPrompts(_ found: [PermissionScanner.Found]) {
         guard !permissionIsDemo else { return }
-        guard let found else {
+        var list = found
+        // gerade beantwortet → kurz ignorieren, bis Claude den Dialog geschlossen hat.
+        // Ist er nach 1,5 s immer noch da, kam der Klick nicht an → einmal erneut drücken.
+        if let i = list.firstIndex(where: { $0.prompt.key == answeredKey }), Date().timeIntervalSince(answeredAt) < 8 {
+            let f = list[i]
+            if !retried, Date().timeIntervalSince(answeredAt) > 1.5,
+               let j = f.prompt.options.firstIndex(where: { $0.label == answeredLabel }), j < f.elements.count {
+                retried = true
+                DevBridge.log("Wiederhole Klick: \(answeredLabel)")
+                _ = AXUIElementPerformAction(f.elements[j], kAXPressAction as CFString)
+            }
+            list.remove(at: i)
+        }
+        let ext = externalPrompts.map { PermissionScanner.Found(prompt: $0, elements: []) }
+        let all = list + ext
+        if queueCount != all.count { queueCount = all.count }
+        guard !all.isEmpty else {
             if permission != nil { permission = nil }
             permissionElements = []
             return
         }
-        // gerade beantwortet → kurz ignorieren, bis Claude den Dialog geschlossen hat.
-        // Ist er nach 1,5 s immer noch da, kam der Klick nicht an → einmal erneut drücken.
-        if found.prompt.key == answeredKey, Date().timeIntervalSince(answeredAt) < 8 {
-            if !retried, Date().timeIntervalSince(answeredAt) > 1.5,
-               let i = found.prompt.options.firstIndex(where: { $0.label == answeredLabel }), i < found.elements.count {
-                retried = true
-                DevBridge.log("Wiederhole Klick: \(answeredLabel)")
-                _ = AXUIElementPerformAction(found.elements[i], kAXPressAction as CFString)
-            }
-            return
-        }
-        permissionElements = found.elements
-        if permission?.key != found.prompt.key {
-            permission = found.prompt
-            DevBridge.log("\(found.prompt.kind == .question ? "Rückfrage" : "Erlaubnis") erkannt: \(found.prompt.title) · Optionen: \(found.prompt.options.map(\.label))")
+        // Die gerade gezeigte Anfrage bleibt stehen, solange es sie noch gibt
+        let pick = all.first(where: { $0.prompt.key == permission?.key }) ?? all[0]
+        permissionElements = pick.elements
+        if permission?.key != pick.prompt.key {
+            permission = pick.prompt
+            DevBridge.log("\(pick.prompt.kind == .question ? "Rückfrage" : "Erlaubnis") erkannt (\(all.count) offen): \(pick.prompt.title) · Optionen: \(pick.prompt.options.map(\.label))")
             NSSound(named: "Funk")?.play()
             haptic()
+        } else if pick.prompt.multi == false, permission != pick.prompt, pick.prompt.kind == .question {
+            permission = pick.prompt
         }
+    }
+
+    // MARK: Claude Code (Hook „PermissionRequest“)
+
+    /// Anfrage von notch-mcp --hook permission: wartet, bis in der Insel geantwortet wird.
+    func addExternalPrompt(id: String, title: String, detail: String) {
+        guard !externalPrompts.contains(where: { $0.key == "ext|" + id }) else { return }
+        let p = PermissionPrompt(key: "ext|" + id, title: title, detail: detail,
+                                 options: [.init(id: 0, label: "Ablehnen", role: .deny),
+                                           .init(id: 1, label: "Erlauben", role: .allow),
+                                           .init(id: 2, label: "Im Terminal", role: .other)])
+        externalPrompts.append(p)
+        // Nach 10 Minuten verfällt die Anfrage (der Hook gibt dann an das Terminal zurück)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 600) { [weak self] in self?.dropExternal(id) }
+        applyPrompts(lastAXPrompts)
+    }
+
+    func dropExternal(_ id: String) {
+        externalPrompts.removeAll { $0.key == "ext|" + id }
+        applyPrompts(lastAXPrompts)
+    }
+
+    func replyExternal(_ p: PermissionPrompt, _ option: PermissionPrompt.Option) {
+        let id = String(p.key.dropFirst(4))
+        let decision = option.role == .allow ? "allow" : (option.role == .deny ? "deny" : "ask")
+        let json = "{\"id\":\"\(id)\",\"decision\":\"\(decision)\"}"
+        DistributedNotificationCenter.default().postNotificationName(Const.replyNotification, object: json, userInfo: nil, deliverImmediately: true)
+        externalPrompts.removeAll { $0.key == p.key }
+        DevBridge.log("Claude-Code-Antwort: \(decision)")
     }
 
     func demoQuestion() {
@@ -326,6 +398,11 @@ struct PermissionView: View {
                             HStack(spacing: 6) {
                                 Text(p.kind == .question ? "Claude fragt" : "Claude braucht deine Erlaubnis")
                                     .font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.claude)
+                                if claude.queueCount > 1 {
+                                    Text("\(claude.queueCount) offen").font(.system(size: 10, weight: .bold))
+                                        .foregroundStyle(.black).padding(.horizontal, 6).padding(.vertical, 1)
+                                        .background(Capsule().fill(Color.claude))
+                                }
                                 if !p.progress.isEmpty {
                                     Text(p.progress).font(.system(size: 10, weight: .semibold).monospacedDigit())
                                         .foregroundStyle(Color.dim)
