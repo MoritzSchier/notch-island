@@ -83,6 +83,8 @@ final class ClaudeService: ObservableObject {
     var lastAXPrompts: [PermissionScanner.Found] = []
     /// Wie viele Anfragen gerade offen sind (alle Agenten zusammen)
     @Published var queueCount = 0
+    /// Alle Claude-Sitzungen (mehrere Agenten / Terminals / Fenster) für die Übersicht
+    @Published var sessions: [ClaudeSession] = []
     var lastButtonLabels: [String] = []
 
     private let queue = DispatchQueue(label: "notch.claude", qos: .utility)
@@ -132,6 +134,7 @@ final class ClaudeService: ObservableObject {
                 self.polling = false
                 // Eine offene Rückfrage zählt als "wartet" – nicht als fertig
                 self.applyDetection(r.generating || !r.questions.isEmpty)
+                self.updateDesktopSessions(r.windows)
                 self.lastAXPrompts = r.permissions + r.questions
                 self.applyPrompts(self.lastAXPrompts)
                 // („Claude benötigt deine Aufmerksamkeit“ wurde entfernt – zu viele Fehlalarme)
@@ -159,6 +162,7 @@ final class ClaudeService: ObservableObject {
         /// Claude wartet auf etwas, das sich nicht auslesen ließ → Fenster, in dem es passiert
         var attentionWindow: AXUIElement?
         var attentionText: String?
+        var windows: [DesktopWindowState] = []
     }
 
     /// Nur eindeutige Formulierungen – Claudes Statuszeile zeigt sonst auch Gedanken wie
@@ -186,6 +190,8 @@ final class ClaudeService: ObservableObject {
             var permCandidates: [AXUIElement] = []
             var cardFailed = false
             var statusHint: String?
+            let questionsBefore = r.questions.count
+            var winGenerating = false
             while let el = stack.popLast(), visited < 9000 {
                 visited += 1
                 let role = AX.string(el, kAXRoleAttribute as String)
@@ -204,8 +210,9 @@ final class ClaudeService: ObservableObject {
                                  AX.string(el, kAXHelpAttribute as String)]
                         .compactMap { $0 }.joined(separator: " ").lowercased()
                     if !short.isEmpty && labels.count < 300 { labels.append(short) }
-                    if !r.generating, !label.isEmpty, Self.stopWords.contains(where: { label.contains($0) }),
+                    if !winGenerating, !label.isEmpty, Self.stopWords.contains(where: { label.contains($0) }),
                        !label.contains("aufnahme"), !label.contains("recording"), !label.contains("diktat") {
+                        winGenerating = true
                         r.generating = true
                     }
                     if PermissionScanner.role(for: short) != nil { permCandidates.append(el) }
@@ -226,6 +233,9 @@ final class ClaudeService: ObservableObject {
             for i in perms.indices { perms[i].window = win }
             for i in r.questions.indices where r.questions[i].window == nil { r.questions[i].window = win }
             r.permissions += perms
+            r.windows.append(DesktopWindowState(window: win, title: AX.string(win, kAXTitleAttribute as String) ?? "",
+                                                generating: winGenerating,
+                                                waiting: !perms.isEmpty || r.questions.count > questionsBefore))
             let unreadable = cardFailed || (!permCandidates.isEmpty && perms.isEmpty)
             let questionsHere = !r.questions.isEmpty
             if r.attentionWindow == nil, unreadable || (statusHint != nil && perms.isEmpty && !questionsHere && !r.generating) {
@@ -343,6 +353,16 @@ final class ClaudeService: ObservableObject {
 
     func handleExternal(_ d: [String: Any]) {
         let kind = d["kind"] as? String ?? "claude"
+        // Sitzungs-Übersicht (Claude Code mit Sitzungskennung)
+        if d["session"] != nil {
+            if kind == "permission" {
+                var w = d; w["state"] = "waiting"; w["activity"] = tr("Wartet auf deine Erlaubnis")
+                updateCodeSession(w)
+            } else if kind == "claude" {
+                updateCodeSession(d)
+                if (d["state"] as? String) == "end" { return }
+            }
+        }
         switch kind {
         case "permission":
             // Inhalt liegt in einer privaten Datei – über die systemweite Nachricht kommt nur die Kennung
@@ -363,7 +383,7 @@ final class ClaudeService: ObservableObject {
             let state = ClaudeTask.State(rawValue: (d["state"] as? String ?? "running").lowercased()) ?? .running
             let src = ClaudeTask.Source(rawValue: d["source"] as? String ?? "mcp") ?? .mcp
             let title = (d["title"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-            let detail = (d["detail"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+            let detail = ((d["detail"] as? String) ?? (d["activity"] as? String)).flatMap { $0.isEmpty ? nil : $0 }
             let progress = Self.number(d["progress"]).map { $0 > 1 ? $0 / 100 : $0 }
             let steps = (d["steps"] as? [Any])?.compactMap { $0 as? String }
             var stepIndex = Self.number(d["step"]).map { Int($0) - 1 }

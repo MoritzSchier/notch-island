@@ -68,7 +68,7 @@ final class NotificationBannerMonitor {
         let key = (bundleID ?? "") + "|" + rawTitle + "|" + String(text.prefix(60))
         guard seen[key] == nil else { return }
         seen[key] = now
-        if let id = bundleID, id == Const.bundleID || AppInfo.frontmost == id { return }
+        if let id = bundleID, id == Const.bundleID || AppInfo.isVisiblyFrontmost(id) { return }
         if let id = bundleID {
             recentApps[id] = now
             Opt.noteSeenApp(id)

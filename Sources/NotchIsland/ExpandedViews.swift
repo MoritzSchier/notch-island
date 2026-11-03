@@ -554,11 +554,13 @@ struct SettingsPill: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 5) {
-                Image(systemName: "gearshape.fill")
-                    .font(.system(size: 12, weight: .semibold))
-                    .rotationEffect(.degrees(hover ? 60 : 0))
-                Text(tr("Einstellungen")).font(.system(size: 11, weight: .semibold))
+            // Passt der Text nicht hin (schmale Tabs), nur das Zahnrad zeigen
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 5) {
+                    gear
+                    Text(tr("Einstellungen")).font(.system(size: 11, weight: .semibold)).lineLimit(1).fixedSize()
+                }
+                gear
             }
             .foregroundStyle(hover ? Color.black : Color.white)
             .padding(.horizontal, 10).padding(.vertical, 5)
@@ -568,5 +570,11 @@ struct SettingsPill: View {
         .buttonStyle(PressableStyle())
         .onHover { h in withAnimation(.easeOut(duration: 0.18)) { hover = h } }
         .help(tr("Einstellungen öffnen"))
+    }
+
+    private var gear: some View {
+        Image(systemName: "gearshape.fill")
+            .font(.system(size: 12, weight: .semibold))
+            .rotationEffect(.degrees(hover ? 60 : 0))
     }
 }

@@ -11,7 +11,7 @@ The app is available in English and German.
 - **Music and videos** – Spotify, Apple Music and YouTube in Chrome, with cover art and controls
 - **Calls** – WhatsApp, FaceTime, Discord, Zoom, Teams and others, with call timer and mute
 - **Notifications** – sender and the first lines of the message, stacked per app like on iPhone. By default only apps that matter show up (messengers, mail, Slack, Teams, calendar …); you can add others in settings
-- **Claude** – live progress, "reply ready", permission requests and multiple-choice questions you can answer in the notch, plus your usage limit. Works with Claude Desktop and Claude Code, including several agents at once
+- **Claude** – live progress, "reply ready", permission requests and multiple-choice questions you can answer in the notch, plus your usage limit. Works with Claude Desktop and Claude Code. If you run several agents in parallel, the Claude tab shows all sessions at a glance – which one is working, which one is waiting for you – and a click takes you there
 - **Shelf** – drag files onto the notch to keep them, share them, zip them, convert them (PDF, DOCX, JPEG, PNG, MP4, MP3 …) or make them smaller
 - **Timers and stopwatch**, your **next event** with a join button, and due **reminders**
 - **Color picker**, **audio device switching**, **battery details**, a camera **mirror**, **clipboard history** and a quick note

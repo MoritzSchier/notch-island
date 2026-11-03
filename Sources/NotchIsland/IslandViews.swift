@@ -99,6 +99,7 @@ struct CompactView: View {
 struct CompactLeading: View {
     let kind: ActivityKind
     var small = false
+    @ObservedObject var claude = ClaudeService.shared
     @ObservedObject var media = MediaController.shared
     @ObservedObject var calls = CallMonitor.shared
 
@@ -115,7 +116,17 @@ struct CompactLeading: View {
             case .timer:
                 Image(systemName: "timer").foregroundStyle(.orange)
             case .claude:
-                ClaudeGlyph(size: small ? 12 : 14)
+                HStack(spacing: 2) {
+                    ClaudeGlyph(size: small ? 12 : 14)
+                    // Mehrere Agenten gleichzeitig: Anzahl anzeigen
+                    if !small, claude.activeSessionCount > 1 {
+                        Text("\(claude.activeSessionCount)")
+                            .font(.system(size: 9, weight: .bold).monospacedDigit())
+                            .foregroundStyle(.black)
+                            .padding(.horizontal, 3.5).padding(.vertical, 0.5)
+                            .background(Capsule().fill(Color.claude))
+                    }
+                }
             case .meeting:
                 Image(systemName: "calendar").foregroundStyle(.red)
             case .download:
