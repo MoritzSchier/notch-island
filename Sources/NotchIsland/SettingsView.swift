@@ -24,6 +24,7 @@ struct SettingsView: View {
     @AppStorage(Prefs.showReminders) private var showReminders = true
     @AppStorage(Prefs.showBanners) private var showBanners = true
     @AppStorage(Prefs.screenMode) private var screenMode = "mouse"
+    @AppStorage(Prefs.simulateNotch) private var simulateNotch = false
 
     @ObservedObject private var model = IslandModel.shared
     @ObservedObject private var updater = Updater.shared
@@ -87,6 +88,7 @@ struct SettingsView: View {
                     Spacer()
                     Button("Zurücksetzen") { IslandModel.shared.resetTabOrder() }
                 }
+                Toggle("Schwarze Notch simulieren (Macs/Monitore ohne Notch)", isOn: $simulateNotch)
                 Picker("Bildschirm", selection: $screenMode) {
                     Text("Folgt der Maus (mehrere Monitore)").tag("mouse")
                     Text("Immer der Bildschirm mit Notch").tag("notch")

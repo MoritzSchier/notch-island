@@ -10,10 +10,11 @@ struct SetupView: View {
     var initialStep: Step = .welcome
 
     enum Step: Int, CaseIterable {
-        case welcome, accessibility, notifications, calendar, media, claude, done
+        case welcome, look, accessibility, notifications, calendar, media, claude, done
         var title: String {
             switch self {
             case .welcome: return "Willkommen"
+            case .look: return "Aussehen & Tabs"
             case .accessibility: return "Bedienungshilfen"
             case .notifications: return "Mitteilungen"
             case .calendar: return "Kalender"
@@ -25,6 +26,9 @@ struct SetupView: View {
     }
 
     @State private var step: Step = .welcome
+    @ObservedObject private var model = IslandModel.shared
+    @AppStorage(Prefs.simulateNotch) private var simulateNotch = false
+    @AppStorage(Prefs.hoverToOpen) private var hoverToOpen = true
     @State private var didInit = false
     @State private var ax = AXIsProcessTrusted()
     @State private var fullDisk = NotificationDBMonitor.path != nil
@@ -127,6 +131,35 @@ struct SetupView: View {
             bullet("sparkle", "Claude: Fortschritt sehen und Fragen direkt oben beantworten")
             Text("In den nächsten Schritten erlaubst du, was Notch Island dafür braucht. Jeder Schritt ist erklärt und lässt sich überspringen – du kannst alles später in den Einstellungen nachholen.")
                 .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+
+        case .look:
+            header("rectangle.topthird.inset.filled", "Aussehen & Tabs", "Wie soll deine Insel aussehen, und was soll sie zeigen?")
+            Text("Notch").font(.headline)
+            if Self.anyScreenWithoutNotch {
+                Toggle(isOn: $simulateNotch) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Schwarze Notch dauerhaft anzeigen")
+                        Text(Self.anyScreenWithNotch
+                             ? "Für Bildschirme ohne Notch (z. B. externer Monitor): oben in der Mitte sitzt dann immer eine kleine schwarze Notch. Aus: Die Insel erscheint dort nur, wenn etwas passiert oder die Maus oben ist."
+                             : "Dein Mac hat keine Notch. An: Oben in der Mitte sitzt immer eine kleine schwarze Notch wie bei neueren MacBooks. Aus: Die Insel erscheint nur, wenn etwas passiert oder die Maus oben ist.")
+                            .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            } else {
+                Label("Dein Mac hat eine Notch – die Insel nutzt sie direkt.", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+            }
+            Text("Tabs").font(.headline).padding(.top, 6)
+            Text("Welche Tabs sollen in der aufgeklappten Insel erscheinen? Später änderbar unter Einstellungen › Tabs.")
+                .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: 8) {
+                ForEach(IslandTab.allCases) { t in
+                    Toggle(isOn: Binding(get: { model.isVisible(t) }, set: { model.setVisible(t, $0) })) {
+                        Label(t.title, systemImage: t.icon)
+                    }
+                    .disabled(t == .home)
+                }
+            }
+            Toggle("Öffnen, sobald die Maus auf die Notch zeigt", isOn: $hoverToOpen).padding(.top, 6)
 
         case .accessibility:
             header("hand.raised.fill", "Bedienungshilfen erlauben", "Die wichtigste Freigabe – ohne sie bleibt die Insel ziemlich still.")
@@ -317,6 +350,9 @@ struct SetupView: View {
         let u = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/settings.json")
         return ((try? String(contentsOf: u, encoding: .utf8)) ?? "").contains("notch-mcp --hook permission")
     }
+
+    static var anyScreenWithNotch: Bool { NSScreen.screens.contains { $0.safeAreaInsets.top > 0 } }
+    static var anyScreenWithoutNotch: Bool { NSScreen.screens.contains { $0.safeAreaInsets.top == 0 } }
 
     static func claudeIsConnected() -> Bool {
         let u = FileManager.default.homeDirectoryForCurrentUser

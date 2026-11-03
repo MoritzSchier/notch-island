@@ -5,6 +5,7 @@ struct IslandRootView: View {
     @ObservedObject var model = IslandModel.shared
     @ObservedObject var claude = ClaudeService.shared
     @ObservedObject var web = WebFavorites.shared
+    @AppStorage(Prefs.simulateNotch) private var simulateNotch = false
 
     var body: some View {
         let p = model.presentation
@@ -26,7 +27,8 @@ struct IslandRootView: View {
                     .offset(x: model.notchSize.height + 8)
             }
             .shadow(color: .black.opacity(shadowOpacity(p)), radius: p == .expanded ? 24 : 10, y: p == .expanded ? 10 : 4)
-            .opacity(!model.hasNotch && p == .idle ? 0 : 1)
+            // Ohne echte Notch: im Ruhezustand unsichtbar – außer „Notch simulieren“ ist an
+            .opacity(!model.hasNotch && p == .idle && !simulateNotch ? 0 : 1)
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

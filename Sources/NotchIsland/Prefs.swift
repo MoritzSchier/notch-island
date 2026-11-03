@@ -36,6 +36,8 @@ enum Prefs {
     static let showReminders = "showReminders"
     static let showBanners = "showBanners"
     static let screenMode = "screenMode"
+    /// Auf Bildschirmen ohne Notch dauerhaft eine schwarze Notch zeigen
+    static let simulateNotch = "simulateNotch"
 
     static func registerDefaults() {
         Opt.register()
@@ -43,7 +45,7 @@ enum Prefs {
             hoverToOpen: true, haptics: true, showMedia: true, showVolumeHUD: true, showBrightnessHUD: true,
             showBattery: true, showBluetooth: true, showCalendar: true, detectCalls: true, detectClaude: true,
             showDownloads: true, showBadges: true, clipboardHistory: true, downloadsToShelf: false, showPrivacy: true,
-            defaultTab: "auto", claudePrimary: "auto", showReminders: true, showBanners: true, screenMode: "mouse",
+            defaultTab: "auto", claudePrimary: "auto", showReminders: true, showBanners: true, screenMode: "mouse", simulateNotch: false,
         ])
     }
 

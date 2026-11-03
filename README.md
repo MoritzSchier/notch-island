@@ -22,7 +22,7 @@
 | 🔋 **System** | Akku (Watt, Zeit bis 80 %, Zustand, Zyklen), Bluetooth/AirPods, Downloads, Kamera/Mikrofon-Anzeige |
 | 🌐 **Websites, Spiegel, Zwischenablage-Verlauf, Notiz** | |
 
-Tabs lassen sich per Drag & Drop sortieren und in den Einstellungen › Tabs ein- und ausblenden; dort hat jeder Tab aufklappbare Optionen (z. B. Start-Karten, Alarm-Ton und Timer-Schnellwahl, Farbformate, Nutzungsanzeige). Mitteilungen lassen sich pro App stummschalten, mit oder ohne Textvorschau. Ein **Einrichtungsassistent** führt beim ersten Start durch alle Freigaben, und **Updates** werden automatisch angeboten (ein Klick lädt die neue Version von GitHub und startet neu). Die Insel klappt automatisch zu, sobald die Maus weg ist.
+Auf Macs oder Monitoren ohne Notch kann auf Wunsch dauerhaft eine schwarze Notch angezeigt werden (Einstellungen › Allgemein, standardmäßig aus). Tabs lassen sich per Drag & Drop sortieren und in den Einstellungen › Tabs ein- und ausblenden; dort hat jeder Tab aufklappbare Optionen (z. B. Start-Karten, Alarm-Ton und Timer-Schnellwahl, Farbformate, Nutzungsanzeige). Mitteilungen lassen sich pro App stummschalten, mit oder ohne Textvorschau. Ein **Einrichtungsassistent** führt beim ersten Start durch alle Freigaben, und **Updates** werden automatisch angeboten (ein Klick lädt die neue Version von GitHub und startet neu). Die Insel klappt automatisch zu, sobald die Maus weg ist.
 
 > Konvertieren von Office-Dateien nutzt das, was installiert ist: Word/PowerPoint oder Pages/Keynote/Numbers. MP3 braucht zusätzlich `lame` (`brew install lame`). Alles andere funktioniert ohne Zusatzprogramme.
 
