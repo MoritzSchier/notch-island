@@ -1,40 +1,37 @@
 # Notch Island
 
-**Die Dynamic Island für den Mac** – auf Deutsch und Englisch. Notch Island macht die MacBook-Notch (oder die Mitte der Menüleiste bei Macs ohne Notch) zu einer lebendigen Insel – mit Live-Aktivitäten, Mitteilungen, einer Dropzone für Dateien und direkter Claude-Anbindung.
+I wanted the iPhone's Dynamic Island on my Mac, so I built it. Notch Island turns the MacBook notch into a small live area that shows what's going on – music, calls, timers, messages – and opens into a little control center when you hover over it. On Macs without a notch it sits at the top center of the screen.
 
-[English below](#english)
+It also works nicely with Claude: you can follow what Claude is doing and answer its permission requests and questions right from the notch, without switching to the chat.
 
----
+The app is available in English and German.
 
-## Funktionen
+## What it does
 
-| | |
-|---|---|
-| 🎵 **Musik & Videos** | Spotify, Apple Music, YouTube in Chrome – Cover, Titel, Fortschritt, Steuerung, Lautstärke, Klangwellen |
-| 📞 **Anrufe** | WhatsApp, Discord, FaceTime/iPhone, Zoom, Teams, Slack, Telegram, Browser-Calls – mit Dauer und Stummschalten |
-| 💬 **Mitteilungen** | wie am iPhone: Absender + erste Zeilen, gestapelt pro App; auch im Fokus-Modus. Standardmäßig nur wichtige Apps: WhatsApp, Nachrichten, Telegram, Signal, Threema, Messenger, Discord, Slack, Teams, Zoom, Webex, Mail, Outlook, Spark, Airmail, Thunderbird, Mimestream, Canary, Proton Mail, Superhuman, Chrome/Safari, FaceTime, Kalender, Fantastical, Erinnerungen – weitere einzeln zuschaltbar |
-| ✨ **Claude** | Live-Fortschritt mit Schritten, „Antwort bereit“, **Erlaubnis-Anfragen und Rückfragen direkt in der Insel beantworten**, Nutzungslimit |
-| ⏱ **Timer & Stoppuhr** | mit Alarm, +1 Min, Stopp |
-| 📂 **Ablage (Dropzone)** | Dateien auf die Notch ziehen → ablegen, teilen, AirDrop, ZIP, **konvertieren** (PDF, DOCX, JPEG, PNG, HEIC, MP4, MOV, MP3 …) und **verkleinern** |
-| 📅 **Als Nächstes** | nächster Termin (mit Beitreten-Knopf) und fällige Erinnerungen |
-| 🎨 **Farben** | Pipette mit Verlauf, HEX/RGB/HSL/SwiftUI per Klick kopieren |
-| 🔊 **Audio** | Ein- und Ausgabegerät wechseln |
-| 🔋 **System** | Akku (Watt, Zeit bis 80 %, Zustand, Zyklen), Bluetooth/AirPods, Downloads, Kamera/Mikrofon-Anzeige |
-| 🌐 **Websites, Spiegel, Zwischenablage-Verlauf, Notiz** | |
+- **Music and videos** – Spotify, Apple Music and YouTube in Chrome, with cover art and controls
+- **Calls** – WhatsApp, FaceTime, Discord, Zoom, Teams and others, with call timer and mute
+- **Notifications** – sender and the first lines of the message, stacked per app like on iPhone. By default only apps that matter show up (messengers, mail, Slack, Teams, calendar …); you can add others in settings
+- **Claude** – live progress, "reply ready", permission requests and multiple-choice questions you can answer in the notch, plus your usage limit. Works with Claude Desktop and Claude Code, including several agents at once
+- **Shelf** – drag files onto the notch to keep them, share them, zip them, convert them (PDF, DOCX, JPEG, PNG, MP4, MP3 …) or make them smaller
+- **Timers and stopwatch**, your **next event** with a join button, and due **reminders**
+- **Color picker**, **audio device switching**, **battery details**, a camera **mirror**, **clipboard history** and a quick note
 
-Auf Macs oder Monitoren ohne Notch kann auf Wunsch dauerhaft eine schwarze Notch angezeigt werden (Einstellungen › Allgemein, standardmäßig aus). Die Sprache (Deutsch/English) wählst du im Einrichtungsassistenten oder unter Einstellungen › Allgemein. Tabs lassen sich per Drag & Drop sortieren und in den Einstellungen › Tabs ein- und ausblenden; dort hat jeder Tab aufklappbare Optionen (z. B. Start-Karten, Alarm-Ton und Timer-Schnellwahl, Farbformate, Nutzungsanzeige). Mitteilungen lassen sich pro App stummschalten, mit oder ohne Textvorschau. Ein **Einrichtungsassistent** führt beim ersten Start durch alle Freigaben, und **Updates** werden automatisch angeboten (ein Klick lädt die neue Version von GitHub und startet neu). Die Insel klappt automatisch zu, sobald die Maus weg ist.
+You can reorder and hide tabs, change what each tab shows, and turn on a permanent black notch for screens that don't have one.
 
-> Konvertieren von Office-Dateien nutzt das, was installiert ist: Word/PowerPoint oder Pages/Keynote/Numbers. MP3 braucht zusätzlich `lame` (`brew install lame`). Alles andere funktioniert ohne Zusatzprogramme.
+## Install
 
-## Voraussetzungen
+1. Download `NotchIsland-x.y.z.zip` from [Releases](../../releases/latest) and unzip it.
+2. Move **Notch Island** to your Applications folder.
+3. The app isn't notarized by Apple, so the first time you open it, **right-click it and choose Open**. If macOS still refuses, go to System Settings › Privacy & Security and click "Open Anyway".
+4. A short setup assistant walks you through the permissions.
 
-- **macOS 14 (Sonoma) oder neuer**
-- **Jeder Mac:** mit Notch (MacBook Pro/Air ab 2021) oder ohne (Insel sitzt dann oben in der Mitte) – Apple Silicon und Intel, auch mit externen Monitoren
-- Zum Selberbauen: die **Xcode Command Line Tools** (`xcode-select --install`) – Xcode selbst ist nicht nötig
+Updates show up in the notch when a new version is released – one click installs it.
 
-## Installieren
+**Requirements:** macOS 14 (Sonoma) or later, Apple Silicon or Intel.
 
-### Variante A – selbst bauen (empfohlen)
+### Build it yourself
+
+You need the Xcode Command Line Tools (`xcode-select --install`), not full Xcode.
 
 ```bash
 git clone https://github.com/MoritzSchier/notch-island.git
@@ -42,95 +39,45 @@ cd notch-island
 ./build.sh
 ```
 
-Oder im Finder einfach **`Installieren.command`** doppelklicken. Die App landet in `~/Applications/Notch Island.app` und startet automatisch (auch nach jeder Anmeldung – abschaltbar in den Einstellungen).
+Or just double-click `Install.command`. The app ends up in `~/Applications`. To update later: `git pull && ./build.sh`.
 
-Aktualisieren: `git pull && ./build.sh` – deine Freigaben bleiben erhalten.
+## Permissions
 
-### Variante B – fertige App (Releases)
+The setup assistant asks for these one at a time. Only Accessibility is really needed; everything else is optional.
 
-`NotchIsland-x.y.z.zip` aus den [Releases](../../releases) laden, entpacken, nach *Programme* ziehen.
-Die App ist nicht von Apple beglaubigt. Beim ersten Start daher: **Rechtsklick › Öffnen › Öffnen** (oder einmal im Terminal `xattr -cr "/Applications/Notch Island.app"`).
+- **Accessibility** – Claude detection and answers, notification banners, media keys
+- **Full Disk Access** (optional) – lets notifications come through even in Focus / Do Not Disturb. Only the notification list is read
+- **Automation** – for Spotify, Music and Chrome, asked once per app
+- **Calendar and Reminders** – for "up next"
+- **Camera** – only for the mirror tab, only while it's open
 
-## Berechtigungen
-
-Beim ersten Start öffnet sich der **Einrichtungsassistent** und fragt alles Schritt für Schritt an (jederzeit wieder über das Menüleisten-Symbol › „Einrichtung …“). Notch Island fragt nur, was es für eine Funktion wirklich braucht:
-
-| Freigabe | wofür |
-|---|---|
-| **Bedienungshilfen** (wichtigste) | Claude-Erkennung & -Antworten, Mitteilungs-Banner, Dock-Badges, Medientasten |
-| Festplattenvollzugriff (optional) | Mitteilungen immer anzeigen – auch bei Fokus/„Nicht stören“ (liest nur die Mitteilungsliste) |
-| Automation (Spotify, Musik, Chrome) | was gerade läuft + Steuerung – wird beim ersten Mal einzeln abgefragt |
-| Kalender, Erinnerungen | nächster Termin, fällige Erinnerungen |
-| Kamera | nur für den Spiegel-Tab, solange er offen ist |
-| Bluetooth | AirPods & Co. verbunden |
-
-Für **YouTube in Chrome**: Chrome › Darstellung › Entwickler › „JavaScript von Apple Events erlauben“.
-Mitteilungen erscheinen nur, wenn die jeweilige App in *Systemeinstellungen › Mitteilungen* Banner zeigen darf.
+For YouTube in Chrome, also enable *View › Developer › Allow JavaScript from Apple Events* in Chrome.
 
 ## Claude
 
-- **Claude Desktop** wird automatisch erkannt (Bedienungshilfen nötig): Fortschritt, „Claude ist fertig“, Erlaubnis-Anfragen und **Rückfragen mit Auswahl** („Welchen Weg möchtest du?“) erscheinen in der Insel – beantworten per Klick, auch wenn Claude im Vordergrund ist.
-- **MCP-Werkzeuge** `notch_status`, `notch_toast`, `notch_timer`: `build.sh` trägt sie in Claude Desktop ein (Claude danach einmal neu starten). Claude kann damit Schritte und Fortschritt live melden.
-- **Claude Code (Terminal):** Einrichtungsassistent oder Einstellungen › Claude › „Mit Claude Code verbinden“. Danach zeigt die Insel den Fortschritt aller Sitzungen, und **Erlaubnis-Anfragen erscheinen in der Notch – auch von mehreren Agenten gleichzeitig** („3 offen“, eine nach der anderen). „Im Terminal“ gibt die Frage an das Terminal zurück; antwortet niemand, fragt Claude Code nach 10 Minuten wie gewohnt im Terminal.
-- **Wenn sich eine Anfrage nicht auslesen lässt**, zeigt die Insel „Claude benötigt deine Aufmerksamkeit“ mit dem Knopf **Zum Chat**, der genau das richtige Claude-Fenster nach vorn holt.
-- **Mehrere Agenten / Fenster in Claude Desktop:** Alle sichtbaren Erlaubnis-Anfragen und Rückfragen werden gesammelt und nacheinander in der Insel gezeigt.
-- **Nutzungslimit:** im Claude-Tab auf „Anmelden“ klicken und sich einmal im kleinen Fenster bei claude.ai anmelden. Die App sieht dabei kein Passwort und speichert keine Zugangsdaten; sie liest nur die Nutzungswerte (inoffizielle Schnittstelle – kann sich ändern).
-- Eigene Skripte: `open "notchisland://claude?state=running&title=Build&progress=0.4"` (state: running, waiting, done, error)
+- **Claude Desktop** is detected automatically once Accessibility is allowed.
+- **Claude Code**: connect it in the setup assistant or under Settings › Claude. Permission requests from all sessions then show up in the notch. "In Terminal" hands a request back to the terminal; if you don't answer, Claude Code asks in the terminal as usual after 10 minutes.
+- If a request can't be read, the notch tells you Claude needs your attention and takes you to the right chat.
+- **Usage limit**: click "Sign in" in the Claude tab and log in to claude.ai once. The app never sees your password; it only reads your usage numbers from an unofficial endpoint, so this may break if Anthropic changes it.
+- From your own scripts: `open "notchisland://claude?state=running&title=Build&progress=0.4"`
 
-## Datenschutz
+## Privacy
 
-Alles läuft lokal auf deinem Mac. Es gibt keine Analyse, kein Konto, keinen Server. Netzwerkzugriffe nur für: Website-Symbole (Google-Favicon-Dienst), YouTube-Vorschaubilder und – falls du dich anmeldest – die Claude-Nutzungsanzeige. Der Zwischenablage-Verlauf liegt nur im Arbeitsspeicher.
+Everything stays on your Mac. There's no account, no server and no analytics. The app only goes online for website icons, YouTube thumbnails, update checks on this repo and, if you sign in, the Claude usage display. Clipboard history is kept in memory only.
 
-## Sicherheit
+## Troubleshooting
 
-- Keine Server, kein Konto, keine Analyse. Mitteilungen und Claude-Anfragen bleiben auf dem Mac.
-- Antworten an Claude Code laufen über einen privaten Ordner (nur dein Benutzer, Rechte 0700) – nicht über systemweite Nachrichten, die andere Apps mitlesen oder fälschen könnten.
-- Updates werden nur über HTTPS von GitHub geladen und vor dem Austausch geprüft (richtige App, neuere Version).
-- Dateinamen werden in AppleScript-Befehlen maskiert; Hilfsprogramme bekommen Pfade nur als Argumente.
+- **Nothing gets detected:** in System Settings › Privacy & Security › Accessibility, turn Notch Island off and on again.
+- **Mission Control opens while dragging files:** check your Hot Corners in System Settings › Desktop & Dock.
+- **Converting Office files** uses whatever you have installed (Word/PowerPoint or Pages/Keynote/Numbers). MP3 needs `lame` (`brew install lame`).
+- **Build errors:** see `build.log`.
 
-## Probleme?
+## Releasing a new version
 
-- **Insel reagiert nicht / nichts wird erkannt:** Systemeinstellungen › Datenschutz & Sicherheit › Bedienungshilfen › „Notch Island“ aus- und wieder einschalten.
-- **Mission Control öffnet beim Ziehen:** Prüfe *Systemeinstellungen › Schreibtisch & Dock › Aktive Ecken*.
-- **Baufehler:** Details stehen in `build.log`. Meist hilft `xcode-select --install`.
+1. Bump `VERSION` in `build.sh`.
+2. Run `./build.sh --release` – this creates `dist/NotchIsland-<version>.zip` for Apple Silicon and Intel without installing anything.
+3. Create a GitHub release with the tag `v<version>` and attach the zip.
 
-## Updates veröffentlichen
+## License
 
-1. In `build.sh` die `VERSION` erhöhen (z. B. `1.1.0`).
-2. `./build.sh --release` → erzeugt nur `dist/NotchIsland-1.1.0.zip` (Apple Silicon + Intel), ohne etwas zu installieren.
-3. Auf GitHub › Releases › „Draft a new release“ › Tag `v1.1.0` › die ZIP anhängen › veröffentlichen.
-
-Alle installierten Apps zeigen dann „Update verfügbar“. Die Update-Quelle wird beim Bauen automatisch aus dem Git-Remote (`origin`) übernommen; sonst in den Einstellungen › Update eintragen.
-
-## Entwickeln
-
-`./build.sh` baut und installiert die App neu. Optional eine Datei `local.env` anlegen (wird nicht hochgeladen), z. B. `BUNDLE_ID=com.deinname.notchisland`.
-`./build.sh --release` erzeugt eine Universal-App (Apple Silicon + Intel) als ZIP in `dist/` (`--package` installiert zusätzlich).
-
-## Lizenz
-
-MIT – siehe [LICENSE](LICENSE). Nicht mit Apple oder Anthropic verbunden.
-
----
-
-<a name="english"></a>
-# English
-
-**Notch Island turns your Mac's notch into a Dynamic Island** – live activities, notifications, a file dropzone and Claude integration. On Macs without a notch it sits at the top center of the menu bar.
-
-**Features:** media (Spotify, Music, YouTube in Chrome), calls (WhatsApp, Discord, FaceTime, Zoom, Teams …), notifications with sender and text, Claude progress + answering Claude's permission requests and multiple-choice questions right from the island, usage limits, timers, dropzone with conversion (PDF, DOCX, JPEG, PNG, HEIC, MP4, MOV, MP3 …) and compression, next event & reminders, color picker, audio device switching, battery details, Bluetooth, downloads, mirror, clipboard history, quick note. The app is available in **English and German** – pick the language in the setup assistant or in Settings › General.
-
-**Requirements:** macOS 14 Sonoma or later, any Mac (Apple Silicon or Intel, with or without notch, external displays supported). To build: Xcode Command Line Tools (`xcode-select --install`).
-
-**Install:**
-```bash
-git clone https://github.com/MoritzSchier/notch-island.git
-cd notch-island && ./build.sh
-```
-Or double-click `Installieren.command`. The app is installed to `~/Applications` and launches at login (can be disabled). Prebuilt zips in Releases are not notarized: right-click › Open on first launch.
-
-**Permissions:** Accessibility (notifications, Claude, dock badges, media keys), Automation for Spotify/Music/Chrome, Calendar, Reminders, Camera (mirror only), Bluetooth. For YouTube in Chrome enable *View › Developer › Allow JavaScript from Apple Events*.
-
-**Privacy:** everything runs locally – no analytics, no account, no server. Network is only used for website favicons, YouTube thumbnails and (if you sign in) the Claude usage display, which reads an unofficial claude.ai endpoint and never sees your password.
-
-**License:** MIT. Not affiliated with Apple or Anthropic.
+MIT – see [LICENSE](LICENSE). Not affiliated with Apple or Anthropic.
