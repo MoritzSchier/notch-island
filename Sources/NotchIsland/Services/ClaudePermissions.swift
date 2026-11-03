@@ -267,7 +267,9 @@ extension ClaudeService {
                 title: option.label, subtitle: "an Claude gesendet", trailing: option.role == .deny ? .none : .check, duration: 1.8))
         } else if option.id >= 0 && !permissionIsDemo {
             // Nur wenn die Antwort nicht ankam: Hinweis mit Sprung zum richtigen Chat
-            showAttention(subtitle: tr("„\(option.label)“ hat nicht geklappt – bitte im Chat bestätigen"), chat: nil)
+            focusChat()
+            IslandModel.shared.show(Toast(symbol: "exclamationmark.triangle.fill", tint: .orange,
+                                          title: tr("„\(option.label)“ hat nicht geklappt – bitte im Chat bestätigen"), duration: 3))
         }
         permissionIsDemo = false
         IslandModel.shared.setNeedsRecompute()

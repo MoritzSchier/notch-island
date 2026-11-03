@@ -131,10 +131,10 @@ final class ClaudeService: ObservableObject {
             DispatchQueue.main.async {
                 self.polling = false
                 // Eine offene Rückfrage zählt als "wartet" – nicht als fertig
-                self.applyDetection(r.generating || !r.questions.isEmpty || r.attentionWindow != nil)
+                self.applyDetection(r.generating || !r.questions.isEmpty)
                 self.lastAXPrompts = r.permissions + r.questions
                 self.applyPrompts(self.lastAXPrompts)
-                self.applyAttention(window: r.attentionWindow, text: r.attentionText)
+                // („Claude benötigt deine Aufmerksamkeit“ wurde entfernt – zu viele Fehlalarme)
             }
         }
     }
@@ -291,6 +291,8 @@ final class ClaudeService: ObservableObject {
     /// Mitteilungen der Claude-App selbst (aus der Mitteilungsliste)
     func claudeNotification(title: String, text: String) {
         let t = (title + " " + text).lowercased()
+        // Hinweis „Claude benötigt deine Aufmerksamkeit“ ist abgeschaltet – Mitteilungen der Claude-App werden ignoriert
+        return
         guard Self.attentionWords.contains(where: { t.contains($0) }) else { return }
         // Kurz warten: meist erkennt die Insel die Anfrage selbst (dann mit Knöpfen) – nur wenn nicht, Hinweis zeigen
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in

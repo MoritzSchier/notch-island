@@ -57,7 +57,6 @@ For YouTube in Chrome, also enable *View › Developer › Allow JavaScript from
 
 - **Claude Desktop** is detected automatically once Accessibility is allowed.
 - **Claude Code**: connect it in the setup assistant or under Settings › Claude. Permission requests from all sessions then show up in the notch. "In Terminal" hands a request back to the terminal; if you don't answer, Claude Code asks in the terminal as usual after 10 minutes.
-- If a request can't be read, the notch tells you Claude needs your attention and takes you to the right chat.
 - **Usage limit**: click "Sign in" in the Claude tab and log in to claude.ai once. The app never sees your password; it only reads your usage numbers from an unofficial endpoint, so this may break if Anthropic changes it.
 - From your own scripts: `open "notchisland://claude?state=running&title=Build&progress=0.4"`
 
