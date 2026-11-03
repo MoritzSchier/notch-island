@@ -13,14 +13,14 @@ struct SetupView: View {
         case welcome, look, accessibility, notifications, calendar, media, claude, done
         var title: String {
             switch self {
-            case .welcome: return "Willkommen"
-            case .look: return "Aussehen & Tabs"
-            case .accessibility: return "Bedienungshilfen"
-            case .notifications: return "Mitteilungen"
-            case .calendar: return "Kalender"
-            case .media: return "Musik"
-            case .claude: return "Claude"
-            case .done: return "Fertig"
+            case .welcome: return tr("Willkommen")
+            case .look: return tr("Aussehen & Tabs")
+            case .accessibility: return tr("Bedienungshilfen")
+            case .notifications: return tr("Mitteilungen")
+            case .calendar: return tr("Kalender")
+            case .media: return tr("Musik")
+            case .claude: return tr("Claude")
+            case .done: return tr("Fertig")
             }
         }
     }
@@ -29,6 +29,7 @@ struct SetupView: View {
     @ObservedObject private var model = IslandModel.shared
     @AppStorage(Prefs.simulateNotch) private var simulateNotch = false
     @AppStorage(Prefs.hoverToOpen) private var hoverToOpen = true
+    @AppStorage(Loc.key) private var language = "system"
     @State private var didInit = false
     @State private var ax = AXIsProcessTrusted()
     @State private var fullDisk = NotificationDBMonitor.path != nil
@@ -58,6 +59,7 @@ struct SetupView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) { page }
+                    .id(language)
                     .padding(.horizontal, 32).padding(.vertical, 24)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -65,13 +67,13 @@ struct SetupView: View {
             Divider()
             HStack {
                 if step != .welcome && step != .done {
-                    Button("Zurück") { go(-1) }
+                    Button(tr("Zurück")) { go(-1) }
                 }
                 Spacer()
                 if step != .welcome && step != .done && !stepDone {
-                    Button("Überspringen") { go(1) }
+                    Button(tr("Überspringen")) { go(1) }
                 }
-                Button(step == .done ? "Los geht’s" : (step == .welcome ? "Einrichtung starten" : "Weiter")) {
+                Button(step == .done ? tr("Los geht’s") : (step == .welcome ? tr("Einrichtung starten") : tr("Weiter"))) {
                     if step == .done { finish() } else { go(1) }
                 }
                 .keyboardShortcut(.defaultAction)
@@ -124,87 +126,94 @@ struct SetupView: View {
     @ViewBuilder private var page: some View {
         switch step {
         case .welcome:
-            header("sparkles", "Willkommen bei Notch Island", "Deine Notch wird zur Dynamic Island – wie beim iPhone.")
-            bullet("music.note", "Musik, Anrufe, Timer und Termine live oben in der Notch")
-            bullet("message.fill", "Mitteilungen mit Absender und Text – WhatsApp, Mail, Chrome …")
-            bullet("tray.full.fill", "Dateien auf die Notch ziehen: ablegen, teilen, umwandeln, verkleinern")
-            bullet("sparkle", "Claude: Fortschritt sehen und Fragen direkt oben beantworten")
-            Text("In den nächsten Schritten erlaubst du, was Notch Island dafür braucht. Jeder Schritt ist erklärt und lässt sich überspringen – du kannst alles später in den Einstellungen nachholen.")
+            Picker("", selection: $language) {
+                Text("Deutsch").tag("de")
+                Text("English").tag("en")
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 220)
+            .onAppear { if language == "system" { language = Loc.current } }
+            header("sparkles", tr("Willkommen bei Notch Island"), tr("Deine Notch wird zur Dynamic Island – wie beim iPhone."))
+            bullet("music.note", tr("Musik, Anrufe, Timer und Termine live oben in der Notch"))
+            bullet("message.fill", tr("Mitteilungen mit Absender und Text – WhatsApp, Mail, Chrome …"))
+            bullet("tray.full.fill", tr("Dateien auf die Notch ziehen: ablegen, teilen, umwandeln, verkleinern"))
+            bullet("sparkle", tr("Claude: Fortschritt sehen und Fragen direkt oben beantworten"))
+            Text(tr("In den nächsten Schritten erlaubst du, was Notch Island dafür braucht. Jeder Schritt ist erklärt und lässt sich überspringen – du kannst alles später in den Einstellungen nachholen."))
                 .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
 
         case .look:
-            header("rectangle.topthird.inset.filled", "Aussehen & Tabs", "Wie soll deine Insel aussehen, und was soll sie zeigen?")
-            Text("Notch").font(.headline)
+            header("rectangle.topthird.inset.filled", tr("Aussehen & Tabs"), tr("Wie soll deine Insel aussehen, und was soll sie zeigen?"))
+            Text(tr("Notch")).font(.headline)
             if Self.anyScreenWithoutNotch {
                 Toggle(isOn: $simulateNotch) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Schwarze Notch dauerhaft anzeigen")
+                        Text(tr("Schwarze Notch dauerhaft anzeigen"))
                         Text(Self.anyScreenWithNotch
-                             ? "Für Bildschirme ohne Notch (z. B. externer Monitor): oben in der Mitte sitzt dann immer eine kleine schwarze Notch. Aus: Die Insel erscheint dort nur, wenn etwas passiert oder die Maus oben ist."
-                             : "Dein Mac hat keine Notch. An: Oben in der Mitte sitzt immer eine kleine schwarze Notch wie bei neueren MacBooks. Aus: Die Insel erscheint nur, wenn etwas passiert oder die Maus oben ist.")
+                             ? tr("Für Bildschirme ohne Notch (z. B. externer Monitor): oben in der Mitte sitzt dann immer eine kleine schwarze Notch. Aus: Die Insel erscheint dort nur, wenn etwas passiert oder die Maus oben ist.")
+                             : tr("Dein Mac hat keine Notch. An: Oben in der Mitte sitzt immer eine kleine schwarze Notch wie bei neueren MacBooks. Aus: Die Insel erscheint nur, wenn etwas passiert oder die Maus oben ist."))
                             .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     }
                 }
             } else {
                 Label("Dein Mac hat eine Notch – die Insel nutzt sie direkt.", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
             }
-            Text("Tabs").font(.headline).padding(.top, 6)
-            Text("Häkchen = Tab wird angezeigt. Reihenfolge: Zeile an ☰ ziehen oder Pfeile nutzen – die oberste steht in der Insel ganz links. Später änderbar unter Einstellungen › Tabs oder direkt in der Insel per Drag & Drop.")
+            Text(tr("Tabs")).font(.headline).padding(.top, 6)
+            Text(tr("Häkchen = Tab wird angezeigt. Reihenfolge: Zeile an ☰ ziehen oder Pfeile nutzen – die oberste steht in der Insel ganz links. Später änderbar unter Einstellungen › Tabs oder direkt in der Insel per Drag & Drop."))
                 .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             TabOrderList()
                 .frame(height: 300)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
-            Toggle("Öffnen, sobald die Maus auf die Notch zeigt", isOn: $hoverToOpen).padding(.top, 6)
+            Toggle(tr("Öffnen, sobald die Maus auf die Notch zeigt"), isOn: $hoverToOpen).padding(.top, 6)
 
         case .accessibility:
-            header("hand.raised.fill", "Bedienungshilfen erlauben", "Die wichtigste Freigabe – ohne sie bleibt die Insel ziemlich still.")
-            Text("Damit kann Notch Island:").font(.headline)
-            bullet("message", "Mitteilungen mit Absender und Text anzeigen")
-            bullet("sparkle", "erkennen, wann Claude arbeitet, und Fragen in der Notch beantworten")
-            bullet("app.badge", "neue Nachrichten in Apps erkennen (rote Zähler im Dock)")
-            status(ax, "Erlaubt", "Noch nicht erlaubt")
+            header("hand.raised.fill", tr("Bedienungshilfen erlauben"), tr("Die wichtigste Freigabe – ohne sie bleibt die Insel ziemlich still."))
+            Text(tr("Damit kann Notch Island:")).font(.headline)
+            bullet("message", tr("Mitteilungen mit Absender und Text anzeigen"))
+            bullet("sparkle", tr("erkennen, wann Claude arbeitet, und Fragen in der Notch beantworten"))
+            bullet("app.badge", tr("neue Nachrichten in Apps erkennen (rote Zähler im Dock)"))
+            status(ax, tr("Erlaubt"), tr("Noch nicht erlaubt"))
             if !ax {
                 instructions([
-                    "Klicke unten auf „Freigabe anfragen“.",
-                    "Klicke im Hinweis auf „Systemeinstellungen öffnen“.",
-                    "Schalte „Notch Island“ ein (evtl. mit Passwort/Touch ID bestätigen).",
+                    tr("Klicke unten auf „Freigabe anfragen“."),
+                    tr("Klicke im Hinweis auf „Systemeinstellungen öffnen“."),
+                    tr("Schalte „Notch Island“ ein (evtl. mit Passwort/Touch ID bestätigen)."),
                 ])
                 HStack {
-                    Button("Freigabe anfragen") { AX.requestTrust() }.buttonStyle(.borderedProminent)
-                    Button("Einstellungen öffnen") { open("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") }
+                    Button(tr("Freigabe anfragen")) { AX.requestTrust() }.buttonStyle(.borderedProminent)
+                    Button(tr("Einstellungen öffnen")) { open("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") }
                 }
-                note("Heißt bei neueren macOS-Versionen „Gerätesteuerung und Datenzugriff“.")
+                note(tr("Heißt bei neueren macOS-Versionen „Gerätesteuerung und Datenzugriff“."))
             }
 
         case .notifications:
-            header("bell.badge.fill", "Mitteilungen auch im Fokus-Modus", "Optional, aber empfohlen.")
-            Text("Ohne diese Freigabe sieht Notch Island Mitteilungen nur, wenn macOS ein Banner zeigt. Mit „Festplattenvollzugriff“ erscheinen sie immer – auch bei „Nicht stören“, Fokus oder ausgeschalteten Bannern. Gelesen wird nur die Mitteilungsliste, keine anderen Dateien.")
+            header("bell.badge.fill", tr("Mitteilungen auch im Fokus-Modus"), tr("Optional, aber empfohlen."))
+            Text(tr("Ohne diese Freigabe sieht Notch Island Mitteilungen nur, wenn macOS ein Banner zeigt. Mit „Festplattenvollzugriff“ erscheinen sie immer – auch bei „Nicht stören“, Fokus oder ausgeschalteten Bannern. Gelesen wird nur die Mitteilungsliste, keine anderen Dateien."))
                 .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            status(fullDisk, "Erlaubt – Mitteilungen kommen immer an", "Noch nicht erlaubt")
+            status(fullDisk, tr("Erlaubt – Mitteilungen kommen immer an"), tr("Noch nicht erlaubt"))
             if !fullDisk {
                 instructions([
-                    "Klicke auf „Einstellungen öffnen“ – es öffnet sich „Festplattenvollzugriff“.",
-                    "Klicke unten auf „+“ und wähle „Notch Island“ (Knopf „App im Finder zeigen“ hilft) – oder ziehe die App in die Liste.",
-                    "Schalte den Schalter neben „Notch Island“ ein.",
-                    "Danach hier auf „Neu starten“ klicken – erst dann wirkt die Freigabe.",
+                    tr("Klicke auf „Einstellungen öffnen“ – es öffnet sich „Festplattenvollzugriff“."),
+                    tr("Klicke unten auf „+“ und wähle „Notch Island“ (Knopf „App im Finder zeigen“ hilft) – oder ziehe die App in die Liste."),
+                    tr("Schalte den Schalter neben „Notch Island“ ein."),
+                    tr("Danach hier auf „Neu starten“ klicken – erst dann wirkt die Freigabe."),
                 ])
                 HStack {
-                    Button("Einstellungen öffnen") { NotificationDBMonitor.openSettings() }.buttonStyle(.borderedProminent)
-                    Button("App im Finder zeigen") { NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL]) }
-                    Button("Neu starten") { SetupView.relaunch() }
+                    Button(tr("Einstellungen öffnen")) { NotificationDBMonitor.openSettings() }.buttonStyle(.borderedProminent)
+                    Button(tr("App im Finder zeigen")) { NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL]) }
+                    Button(tr("Neu starten")) { SetupView.relaunch() }
                 }
-                note("Die Freigabe wirkt erst nach einem Neustart von Notch Island.")
+                note(tr("Die Freigabe wirkt erst nach einem Neustart von Notch Island."))
             }
 
         case .calendar:
-            header("calendar", "Kalender & Erinnerungen", "Für „Als Nächstes“: dein nächster Termin und fällige Erinnerungen.")
-            permissionRow("Kalender", "calendar", calendar) { CalendarService.shared.requestAccess() }
-            permissionRow("Erinnerungen", "checklist", reminders) { RemindersService.shared.requestAccess() }
-            note("macOS fragt einmal nach – einfach „Erlauben“ bzw. „Vollzugriff erlauben“ wählen.")
+            header("calendar", tr("Kalender & Erinnerungen"), tr("Für „Als Nächstes“: dein nächster Termin und fällige Erinnerungen."))
+            permissionRow(tr("Kalender"), "calendar", calendar) { CalendarService.shared.requestAccess() }
+            permissionRow(tr("Erinnerungen"), "checklist", reminders) { RemindersService.shared.requestAccess() }
+            note(tr("macOS fragt einmal nach – einfach „Erlauben“ bzw. „Vollzugriff erlauben“ wählen."))
 
         case .media:
-            header("music.note", "Musik & Videos", "Damit die Insel zeigt, was läuft – und du es steuern kannst.")
-            Text("Für jede App fragt macOS einmal „Notch Island möchte … steuern“. Bitte mit „Erlauben“ bestätigen. Die App muss dafür geöffnet sein.")
+            header("music.note", tr("Musik & Videos"), tr("Damit die Insel zeigt, was läuft – und du es steuern kannst."))
+            Text(tr("Für jede App fragt macOS einmal „Notch Island möchte … steuern“. Bitte mit „Erlauben“ bestätigen. Die App muss dafür geöffnet sein."))
                 .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             ForEach(Self.mediaApps.filter { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0.id) != nil }, id: \.id) { a in
                 HStack {
@@ -214,47 +223,47 @@ struct SetupView: View {
                     switch automation[a.id] ?? .unknown {
                     case .granted: Label("Erlaubt", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
                     case .denied:
-                        Button("In Einstellungen ändern") { open("x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") }
+                        Button(tr("In Einstellungen ändern")) { open("x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") }
                     case .notRunning:
-                        Button("\(a.name) öffnen") { AppInfo.activate(a.id) }
+                        Button(tr("\(a.name) öffnen")) { AppInfo.activate(a.id) }
                     case .unknown:
-                        Button("Erlauben") { automation[a.id] = Self.automationStatus(a.id, ask: true) }
+                        Button(tr("Erlauben")) { automation[a.id] = Self.automationStatus(a.id, ask: true) }
                     }
                 }
             }
-            note("YouTube in Chrome: zusätzlich in Chrome › Darstellung › Entwickler › „JavaScript von Apple Events erlauben“ anhaken.")
+            note(tr("YouTube in Chrome: zusätzlich in Chrome › Darstellung › Entwickler › „JavaScript von Apple Events erlauben“ anhaken."))
 
         case .claude:
-            header("sparkle", "Mit Claude verbinden", "Optional – nur wenn du die Claude-App nutzt.")
+            header("sparkle", tr("Mit Claude verbinden"), tr("Optional – nur wenn du die Claude-App nutzt."))
             if NSWorkspace.shared.urlForApplication(withBundleIdentifier: Const.claudeBundle) == nil {
-                Text("Claude Desktop ist nicht installiert – diesen Schritt einfach überspringen.").foregroundStyle(.secondary)
+                Text(tr("Claude Desktop ist nicht installiert – diesen Schritt einfach überspringen.")).foregroundStyle(.secondary)
             } else {
-                Text("Notch Island zeigt dann, woran Claude arbeitet (mit Schritten und Fortschritt), meldet „Antwort bereit“ und lässt dich Erlaubnis-Anfragen und Rückfragen direkt in der Notch beantworten.")
+                Text(tr("Notch Island zeigt dann, woran Claude arbeitet (mit Schritten und Fortschritt), meldet „Antwort bereit“ und lässt dich Erlaubnis-Anfragen und Rückfragen direkt in der Notch beantworten."))
                     .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                status(claudeConnected, "Verbunden", "Noch nicht verbunden")
+                status(claudeConnected, tr("Verbunden"), tr("Noch nicht verbunden"))
                 if !claudeConnected {
-                    Button("Mit Claude verbinden") { connectClaude() }.buttonStyle(.borderedProminent)
+                    Button(tr("Mit Claude verbinden")) { connectClaude() }.buttonStyle(.borderedProminent)
                 }
                 if !claudeMessage.isEmpty { note(claudeMessage) }
-                note("Danach Claude einmal ganz beenden (⌘Q) und neu öffnen. Für Rückfragen in der Notch braucht es außerdem die Bedienungshilfen (Schritt 2).")
+                note(tr("Danach Claude einmal ganz beenden (⌘Q) und neu öffnen. Für Rückfragen in der Notch braucht es außerdem die Bedienungshilfen (Schritt 2)."))
             }
             if FileManager.default.fileExists(atPath: NSHomeDirectory() + "/.claude") {
                 Divider().padding(.vertical, 4)
-                Text("Claude Code (Terminal)").font(.headline)
-                Text("Zeigt Fortschritt aller Claude-Code-Sitzungen und lässt dich Erlaubnis-Anfragen – auch von mehreren Agenten gleichzeitig – in der Notch beantworten.")
+                Text(tr("Claude Code (Terminal)")).font(.headline)
+                Text(tr("Zeigt Fortschritt aller Claude-Code-Sitzungen und lässt dich Erlaubnis-Anfragen – auch von mehreren Agenten gleichzeitig – in der Notch beantworten."))
                     .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                status(codeConnected, "Verbunden", "Noch nicht verbunden")
+                status(codeConnected, tr("Verbunden"), tr("Noch nicht verbunden"))
                 if !codeConnected {
-                    Button("Mit Claude Code verbinden") { connectClaudeCode() }
+                    Button(tr("Mit Claude Code verbinden")) { connectClaudeCode() }
                 }
             }
 
         case .done:
-            header("checkmark.seal.fill", "Fertig!", "Zeige mit der Maus auf die Notch – die Insel klappt auf.")
-            bullet("hand.point.up.left.fill", "Tabs per Drag & Drop sortieren, Zahnrad oben rechts für Einstellungen")
-            bullet("eye", "Welche Tabs du siehst, stellst du in den Einstellungen › Tabs ein")
-            bullet("arrow.down.circle", "Updates werden automatisch angeboten")
-            Toggle("Bei der Anmeldung automatisch starten", isOn: Binding(get: { launchAtLogin }, set: { on in
+            header("checkmark.seal.fill", tr("Fertig!"), tr("Zeige mit der Maus auf die Notch – die Insel klappt auf."))
+            bullet("hand.point.up.left.fill", tr("Tabs per Drag & Drop sortieren, Zahnrad oben rechts für Einstellungen"))
+            bullet("eye", tr("Welche Tabs du siehst, stellst du in den Einstellungen › Tabs ein"))
+            bullet("arrow.down.circle", tr("Updates werden automatisch angeboten"))
+            Toggle(tr("Bei der Anmeldung automatisch starten"), isOn: Binding(get: { launchAtLogin }, set: { on in
                 do { if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() } } catch {}
                 launchAtLogin = SMAppService.mainApp.status == .enabled
             }))
@@ -310,7 +319,7 @@ struct SetupView: View {
             Label(title, systemImage: symbol)
             Spacer()
             if ok { Label("Erlaubt", systemImage: "checkmark.circle.fill").foregroundStyle(.green) }
-            else { Button("Erlauben", action: ask) }
+            else { Button(tr("Erlauben"), action: ask) }
         }
     }
 
@@ -326,9 +335,9 @@ struct SetupView: View {
         do {
             try p.run(); p.waitUntilExit()
             claudeConnected = Self.claudeIsConnected()
-            claudeMessage = claudeConnected ? "Eingetragen. Jetzt Claude neu starten." :
-                (String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? "Fehler")
-        } catch { claudeMessage = "Fehler: \(error.localizedDescription)" }
+            claudeMessage = claudeConnected ? tr("Eingetragen. Jetzt Claude neu starten.") :
+                (String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? tr("Fehler"))
+        } catch { claudeMessage = tr("Fehler: \(error.localizedDescription)") }
     }
 
     private func connectClaudeCode() {
@@ -359,8 +368,8 @@ struct SetupView: View {
     }
 
     struct MediaApp { let id: String; let name: String }
-    static let mediaApps = [MediaApp(id: Const.spotify, name: "Spotify"), MediaApp(id: Const.music, name: "Musik"),
-                            MediaApp(id: Const.chrome, name: "Google Chrome")]
+    static var mediaApps: [MediaApp] { [MediaApp(id: Const.spotify, name: tr("Spotify")), MediaApp(id: Const.music, name: tr("Musik")),
+                            MediaApp(id: Const.chrome, name: tr("Google Chrome"))] }
 
     enum AutomationStatus { case unknown, granted, denied, notRunning }
 
@@ -401,7 +410,7 @@ enum SetupWindow {
         if window == nil {
             let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 560),
                              styleMask: [.titled, .closable], backing: .buffered, defer: false)
-            w.title = "Notch Island einrichten"
+            w.title = tr("Notch Island einrichten")
             w.isReleasedWhenClosed = false
             w.contentView = NSHostingView(rootView: SetupView(onFinish: { SetupWindow.close() }, initialStep: step ?? savedStep))
             w.center()

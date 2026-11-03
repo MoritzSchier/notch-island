@@ -79,7 +79,7 @@ final class NotificationBannerMonitor {
             }
             if !Opt.notificationsAllowed(id) { return }
         }
-        let name = appName ?? bundleID.map { AppInfo.name($0) } ?? "Mitteilung"
+        let name = appName ?? bundleID.map { AppInfo.name($0) } ?? tr("Mitteilung")
         var sender = rawTitle.isEmpty ? name : rawTitle
         var msg = text
         if sender == name, !msg.isEmpty, subtitle == nil, let b = msg.components(separatedBy: " · ").first, b.count < 40, msg.contains(" · ") {

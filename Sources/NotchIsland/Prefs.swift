@@ -91,28 +91,28 @@ enum AppInfo {
     }
 
     /// Bekannte System-Prozesse mit verständlichem Namen
-    private static let friendly: [String: String] = [
-        "com.apple.notificationcenterui": "Mitteilungen",
-        "com.apple.UserNotificationCenter": "Mitteilungen",
-        "com.apple.usernotificationsd": "Mitteilungen",
-        "com.apple.systempreferences": "Systemeinstellungen",
-        "com.apple.controlcenter": "Kontrollzentrum",
-        "com.apple.dock": "Dock",
-        "com.apple.finder": "Finder",
+    private static var friendly: [String: String] { [
+        "com.apple.notificationcenterui": tr("Mitteilungen"),
+        "com.apple.UserNotificationCenter": tr("Mitteilungen"),
+        "com.apple.usernotificationsd": tr("Mitteilungen"),
+        "com.apple.systempreferences": tr("Systemeinstellungen"),
+        "com.apple.controlcenter": tr("Kontrollzentrum"),
+        "com.apple.dock": tr("Dock"),
+        "com.apple.finder": tr("Finder"),
         "com.apple.FaceTime": "FaceTime",
-        "com.apple.MobileSMS": "Nachrichten",
-        "com.apple.mail": "Mail",
-        "com.apple.iCal": "Kalender",
-        "com.apple.reminders": "Erinnerungen",
-        "com.apple.Safari": "Safari",
-        "com.apple.WebKit.GPU": "Safari",
+        "com.apple.MobileSMS": tr("Nachrichten"),
+        "com.apple.mail": tr("Mail"),
+        "com.apple.iCal": tr("Kalender"),
+        "com.apple.reminders": tr("Erinnerungen"),
+        "com.apple.Safari": tr("Safari"),
+        "com.apple.WebKit.GPU": tr("Safari"),
         "net.whatsapp.WhatsApp": "WhatsApp",
         "desktop.WhatsApp": "WhatsApp",
-        "com.hnc.Discord": "Discord",
-        "com.anthropic.claudefordesktop": "Claude",
-        "com.apple.telephonyutilities.callservicesd": "Telefon",
-        "com.apple.TelephonyUtilities": "Telefon",
-    ]
+        "com.hnc.Discord": tr("Discord"),
+        "com.anthropic.claudefordesktop": tr("Claude"),
+        "com.apple.telephonyutilities.callservicesd": tr("Telefon"),
+        "com.apple.TelephonyUtilities": tr("Telefon"),
+    ] }
 
     static func looksLikeBundleID(_ s: String) -> Bool {
         s.range(of: #"^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+){2,}$"#, options: .regularExpression) != nil

@@ -25,6 +25,7 @@ struct SettingsView: View {
     @AppStorage(Prefs.showBanners) private var showBanners = true
     @AppStorage(Prefs.screenMode) private var screenMode = "mouse"
     @AppStorage(Prefs.simulateNotch) private var simulateNotch = false
+    @AppStorage(Loc.key) private var language = "system"
 
     @ObservedObject private var model = IslandModel.shared
     @ObservedObject private var updater = Updater.shared
@@ -44,6 +45,7 @@ struct SettingsView: View {
                 ForEach(Array(Self.pages.enumerated()), id: \.offset) { i, p in
                     Label(p.0, systemImage: p.1).tag(i)
                 }
+                .id(language)
             }
             .navigationSplitViewColumnWidth(min: 170, ideal: 190, max: 230)
         } detail: {
@@ -60,62 +62,68 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle(Self.pages[min(page, Self.pages.count - 1)].0)
+            .id(language)
         }
         .frame(minWidth: 760, minHeight: 560)
         .onReceive(refresh) { _ in axTrusted = AXIsProcessTrusted(); fullDisk = NotificationDBMonitor.path != nil }
     }
 
-    static let pages: [(String, String)] = [
-        ("Allgemein", "gearshape"),
-        ("Tabs", "square.grid.2x2"),
-        ("Mitteilungen", "message.badge"),
-        ("Aktivitäten", "bell.badge"),
-        ("Claude", "sparkle"),
-        ("Berechtigungen", "lock.shield"),
-        ("Update", "arrow.down.circle")
-    ]
+    static var pages: [(String, String)] { [
+        (tr("Allgemein"), "gearshape"),
+        (tr("Tabs"), "square.grid.2x2"),
+        (tr("Mitteilungen"), "message.badge"),
+        (tr("Aktivitäten"), "bell.badge"),
+        (tr("Claude"), "sparkle"),
+        (tr("Berechtigungen"), "lock.shield"),
+        (tr("Update"), "arrow.down.circle")
+    ] }
 
     @ViewBuilder private var page0: some View {
             Form {
-            Section("Allgemein") {
-                Toggle("Öffnen, wenn die Maus auf die Notch zeigt", isOn: $hoverToOpen)
-                Picker("Standard-Tab beim Öffnen", selection: $defaultTab) {
+            Section(tr("Allgemein")) {
+                Picker("Sprache / Language", selection: $language) {
+                    Text(tr("Wie das System")).tag("system")
+                    Text("Deutsch").tag("de")
+                    Text("English").tag("en")
+                }
+                Toggle(tr("Öffnen, wenn die Maus auf die Notch zeigt"), isOn: $hoverToOpen)
+                Picker(tr("Standard-Tab beim Öffnen"), selection: $defaultTab) {
                     Text("Automatisch (passend zur Aktivität)").tag("auto")
                     ForEach(IslandTab.allCases.filter { model.isVisible($0) }) { t in Label(t.title, systemImage: t.icon).tag(t.rawValue) }
                 }
                 HStack {
-                    Text("Tab-Reihenfolge: in der Insel per Drag & Drop ändern")
+                    Text(tr("Tab-Reihenfolge: in der Insel per Drag & Drop ändern"))
                     Spacer()
-                    Button("Zurücksetzen") { IslandModel.shared.resetTabOrder() }
+                    Button(tr("Zurücksetzen")) { IslandModel.shared.resetTabOrder() }
                 }
-                Toggle("Schwarze Notch simulieren (Macs/Monitore ohne Notch)", isOn: $simulateNotch)
-                Picker("Bildschirm", selection: $screenMode) {
+                Toggle(tr("Schwarze Notch simulieren (Macs/Monitore ohne Notch)"), isOn: $simulateNotch)
+                Picker(tr("Bildschirm"), selection: $screenMode) {
                     Text("Folgt der Maus (mehrere Monitore)").tag("mouse")
                     Text("Immer der Bildschirm mit Notch").tag("notch")
                     Text("Immer der Hauptbildschirm").tag("main")
                 }
-                Toggle("Haptisches Feedback (Trackpad)", isOn: $haptics)
-                Toggle("Bei der Anmeldung starten", isOn: $launchAtLogin)
+                Toggle(tr("Haptisches Feedback (Trackpad)"), isOn: $haptics)
+                Toggle(tr("Bei der Anmeldung starten"), isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, on in
                         do { if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() } }
                         catch { launchAtLogin = SMAppService.mainApp.status == .enabled }
                     }
             }
 
-            Section("Anzeigen") {
-                Toggle("Lautstärke in der Notch", isOn: $showVolumeHUD)
-                Toggle("Helligkeit in der Notch", isOn: $showBrightnessHUD)
+            Section(tr("Anzeigen")) {
+                Toggle(tr("Lautstärke in der Notch"), isOn: $showVolumeHUD)
+                Toggle(tr("Helligkeit in der Notch"), isOn: $showBrightnessHUD)
             }
 
-            Section("Ausprobieren") {
+            Section(tr("Ausprobieren")) {
                 HStack {
-                    Button("Hinweis") {
-                        IslandModel.shared.show(Toast(symbol: "airpodspro", tint: .white, title: "AirPods Pro", subtitle: "Verbunden",
+                    Button(tr("Hinweis")) {
+                        IslandModel.shared.show(Toast(symbol: "airpodspro", tint: .white, title: tr("AirPods Pro"), subtitle: tr("Verbunden"),
                                                       trailing: .ring(0.82), duration: 3))
                     }
-                    Button("10-Sek-Timer") { TimerService.shared.start(seconds: 10, label: "Test-Timer") }
-                    Button("Laden") {
-                        IslandModel.shared.show(Toast(symbol: "bolt.fill", tint: .green, title: "Lädt",
+                    Button(tr("10-Sek-Timer")) { TimerService.shared.start(seconds: 10, label: tr("Test-Timer")) }
+                    Button(tr("Laden")) {
+                        IslandModel.shared.show(Toast(symbol: "bolt.fill", tint: .green, title: tr("Lädt"),
                                                       trailing: .battery(BatteryMonitor.shared.level, charging: true), duration: 3))
                     }
                 }
@@ -131,21 +139,21 @@ struct SettingsView: View {
 
     @ViewBuilder private var page2: some View {
             Form {
-            Section("Live-Aktivitäten") {
-                Toggle("Musik & Videos (Spotify, Musik, YouTube in Chrome)", isOn: $showMedia)
-                Toggle("Anrufe (WhatsApp, Discord, FaceTime, Zoom, Teams …)", isOn: $detectCalls)
-                Toggle("Claude: Fortschritt & „Antwort bereit“", isOn: $detectClaude)
-                Toggle("Nächster Termin (15 Min vorher)", isOn: $showCalendar)
-                Toggle("Fällige Erinnerungen (Apple Erinnerungen)", isOn: $showReminders)
-                Toggle("Downloads", isOn: $showDownloads)
-                Toggle("Mikrofon- & Kamera-Anzeige", isOn: $showPrivacy)
-                Toggle("Laden, Akku schwach", isOn: $showBattery)
-                Toggle("Bluetooth-Geräte (AirPods …)", isOn: $showBluetooth)
+            Section(tr("Live-Aktivitäten")) {
+                Toggle(tr("Musik & Videos (Spotify, Musik, YouTube in Chrome)"), isOn: $showMedia)
+                Toggle(tr("Anrufe (WhatsApp, Discord, FaceTime, Zoom, Teams …)"), isOn: $detectCalls)
+                Toggle(tr("Claude: Fortschritt & „Antwort bereit“"), isOn: $detectClaude)
+                Toggle(tr("Nächster Termin (15 Min vorher)"), isOn: $showCalendar)
+                Toggle(tr("Fällige Erinnerungen (Apple Erinnerungen)"), isOn: $showReminders)
+                Toggle(tr("Downloads"), isOn: $showDownloads)
+                Toggle(tr("Mikrofon- & Kamera-Anzeige"), isOn: $showPrivacy)
+                Toggle(tr("Laden, Akku schwach"), isOn: $showBattery)
+                Toggle(tr("Bluetooth-Geräte (AirPods …)"), isOn: $showBluetooth)
             }
 
-            Section("Ablage & Zwischenablage") {
-                Toggle("Fertige Downloads automatisch in die Ablage", isOn: $downloadsToShelf)
-                Toggle("Zwischenablage-Verlauf (nur im Speicher)", isOn: $clipboardHistory)
+            Section(tr("Ablage & Zwischenablage")) {
+                Toggle(tr("Fertige Downloads automatisch in die Ablage"), isOn: $downloadsToShelf)
+                Toggle(tr("Zwischenablage-Verlauf (nur im Speicher)"), isOn: $clipboardHistory)
                 ForEach(folders, id: \.self) { f in
                     HStack {
                         Image(systemName: "folder.fill").foregroundStyle(.cyan)
@@ -159,7 +167,7 @@ struct SettingsView: View {
                         .buttonStyle(.borderless)
                     }
                 }
-                Button("Zielordner für Drag & Drop hinzufügen …") { addFolder() }
+                Button(tr("Zielordner für Drag & Drop hinzufügen …")) { addFolder() }
                     .disabled(folders.count >= 3)
             }
             }
@@ -168,19 +176,19 @@ struct SettingsView: View {
 
     @ViewBuilder private var page3: some View {
             Form {
-            Section("Claude") {
-                Picker("Claude als Haupt-Tab", selection: $claudePrimary) {
+            Section(tr("Claude")) {
+                Picker(tr("Claude als Haupt-Tab"), selection: $claudePrimary) {
                     ForEach(ClaudePrimaryMode.allCases) { m in Text(m.title).tag(m.rawValue) }
                 }
-                Text("„Bei großen Aufgaben“: Sobald Claude länger arbeitet oder Schritte meldet, öffnet die Insel direkt im Claude-Tab und zeigt Claude zuerst.")
+                Text(tr("„Bei großen Aufgaben“: Sobald Claude länger arbeitet oder Schritte meldet, öffnet die Insel direkt im Claude-Tab und zeigt Claude zuerst."))
                     .font(.caption).foregroundStyle(.secondary)
-                Button("Mit Claude Desktop verbinden (MCP-Werkzeug „notch_status“)") { connectClaude() }
+                Button(tr("Mit Claude Desktop verbinden (MCP-Werkzeug „notch_status“)")) { connectClaude() }
                 if let claudeMessage { Text(claudeMessage).font(.caption).foregroundStyle(.secondary).textSelection(.enabled) }
-                Button("Mit Claude Code verbinden (Terminal: Fortschritt & Erlaubnisse in der Notch)") { connectClaude(code: true) }
-                Button("Vorschau: Claude-Fortschritt abspielen") { ClaudeService.shared.demo() }
-                Button("Vorschau: Erlaubnis-Anfrage in der Notch") { ClaudeService.shared.demoPermission() }
-                Button("Vorschau: Rückfrage mit Auswahl") { ClaudeService.shared.demoQuestion() }
-                Text("Erlaubnis-Anfragen und Rückfragen von Claude (z. B. „Welchen Weg möchtest du?“) erscheinen immer in der Notch – auch wenn Claude offen ist – mit denselben Antwortmöglichkeiten wie im Chat. Benötigt die Bedienungshilfen-Freigabe.")
+                Button(tr("Mit Claude Code verbinden (Terminal: Fortschritt & Erlaubnisse in der Notch)")) { connectClaude(code: true) }
+                Button(tr("Vorschau: Claude-Fortschritt abspielen")) { ClaudeService.shared.demo() }
+                Button(tr("Vorschau: Erlaubnis-Anfrage in der Notch")) { ClaudeService.shared.demoPermission() }
+                Button(tr("Vorschau: Rückfrage mit Auswahl")) { ClaudeService.shared.demoQuestion() }
+                Text(tr("Erlaubnis-Anfragen und Rückfragen von Claude (z. B. „Welchen Weg möchtest du?“) erscheinen immer in der Notch – auch wenn Claude offen ist – mit denselben Antwortmöglichkeiten wie im Chat. Benötigt die Bedienungshilfen-Freigabe."))
                     .font(.caption).foregroundStyle(.secondary)
             }
             }
@@ -189,39 +197,39 @@ struct SettingsView: View {
 
     @ViewBuilder private var page4: some View {
             Form {
-            Section("Berechtigungen") {
+            Section(tr("Berechtigungen")) {
                 HStack {
-                    Label("Bedienungshilfen", systemImage: axTrusted ? "checkmark.circle.fill" : "exclamationmark.circle")
+                    Label(tr("Bedienungshilfen"), systemImage: axTrusted ? "checkmark.circle.fill" : "exclamationmark.circle")
                         .foregroundStyle(axTrusted ? .green : .orange)
                     Spacer()
-                    if !axTrusted { Button("Erlauben …") { AX.requestTrust() } }
+                    if !axTrusted { Button(tr("Erlauben …")) { AX.requestTrust() } }
                 }
-                Text("Nötig für: Claude-Erkennung & -Rückfragen, Mitteilungen (Absender/Text), Dock-Badges und Medientasten. Mitteilungen erscheinen nur, wenn die App in den Systemeinstellungen › Mitteilungen Banner zeigen darf.")
+                Text(tr("Nötig für: Claude-Erkennung & -Rückfragen, Mitteilungen (Absender/Text), Dock-Badges und Medientasten. Mitteilungen erscheinen nur, wenn die App in den Systemeinstellungen › Mitteilungen Banner zeigen darf."))
                     .font(.caption).foregroundStyle(.secondary)
                 HStack {
-                    Label("Festplattenvollzugriff (optional)", systemImage: fullDisk ? "checkmark.circle.fill" : "circle")
+                    Label(tr("Festplattenvollzugriff (optional)"), systemImage: fullDisk ? "checkmark.circle.fill" : "circle")
                         .foregroundStyle(fullDisk ? .green : .secondary)
                     Spacer()
-                    if !fullDisk { Button("Öffnen …") { NotificationDBMonitor.openSettings() } }
+                    if !fullDisk { Button(tr("Öffnen …")) { NotificationDBMonitor.openSettings() } }
                 }
-                Text("Damit erscheinen Mitteilungen auch im Fokus-/„Nicht stören“-Modus und wenn eine App keine Banner zeigt. Notch Island in die Liste ziehen (aus ~/Programme) und einschalten. Gelesen wird nur die Mitteilungs-Datenbank.")
+                Text(tr("Damit erscheinen Mitteilungen auch im Fokus-/„Nicht stören“-Modus und wenn eine App keine Banner zeigt. Notch Island in die Liste ziehen (aus ~/Programme) und einschalten. Gelesen wird nur die Mitteilungs-Datenbank."))
                     .font(.caption).foregroundStyle(.secondary)
                 HStack {
                     Label("Kalender", systemImage: "calendar")
                     Spacer()
-                    Button("Zugriff anfragen") { CalendarService.shared.requestAccess() }
+                    Button(tr("Zugriff anfragen")) { CalendarService.shared.requestAccess() }
                 }
                 HStack {
                     Label("Erinnerungen", systemImage: "checklist")
                     Spacer()
-                    Button("Zugriff anfragen") { RemindersService.shared.requestAccess() }
+                    Button(tr("Zugriff anfragen")) { RemindersService.shared.requestAccess() }
                 }
-                Text("Spotify, Musik und Chrome fragen beim ersten Mal einzeln nach („Automation“). Für YouTube in Chrome zusätzlich: Darstellung › Entwickler › „JavaScript von Apple Events erlauben“.")
+                Text(tr("Spotify, Musik und Chrome fragen beim ersten Mal einzeln nach („Automation“). Für YouTube in Chrome zusätzlich: Darstellung › Entwickler › „JavaScript von Apple Events erlauben“."))
                     .font(.caption).foregroundStyle(.secondary)
             }
 
             Section {
-                Button("Einrichtungsassistent öffnen …") { SetupWindow.show(at: .welcome) }
+                Button(tr("Einrichtungsassistent öffnen …")) { SetupWindow.show(at: .welcome) }
             }
             }
             .formStyle(.grouped)
@@ -229,32 +237,32 @@ struct SettingsView: View {
 
     @ViewBuilder private var page5: some View {
             Form {
-            Section("Updates") {
+            Section(tr("Updates")) {
                 HStack {
-                    Text("Installiert: Version \(updater.currentVersion)")
+                    Text(tr("Installiert: Version \(updater.currentVersion)"))
                     Spacer()
                     switch updater.state {
                     case .checking: ProgressView().controlSize(.small)
                     case .upToDate: Label("Aktuell", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
-                    case .available(let r): Text("Neu: \(r.version)").foregroundStyle(.blue).bold()
-                    case .downloading, .installing: Text("Wird installiert …")
+                    case .available(let r): Text(tr("Neu: \(r.version)")).foregroundStyle(.blue).bold()
+                    case .downloading, .installing: Text(tr("Wird installiert …"))
                     case .failed(let e): Text(e).foregroundStyle(.orange).lineLimit(1)
-                    case .notConfigured: Text("Kein Repository eingetragen").foregroundStyle(.secondary)
+                    case .notConfigured: Text(tr("Kein Repository eingetragen")).foregroundStyle(.secondary)
                     case .idle: EmptyView()
                     }
                 }
                 if let r = updater.available {
                     if !r.notes.isEmpty { Text(r.notes).font(.caption).foregroundStyle(.secondary).lineLimit(6) }
                     HStack {
-                        Button("Jetzt installieren") { updater.install() }.buttonStyle(.borderedProminent)
-                        Button("Auf GitHub ansehen") { NSWorkspace.shared.open(r.pageURL) }
+                        Button(tr("Jetzt installieren")) { updater.install() }.buttonStyle(.borderedProminent)
+                        Button(tr("Auf GitHub ansehen")) { NSWorkspace.shared.open(r.pageURL) }
                     }
                 } else {
-                    Button("Nach Updates suchen") { updater.check() }
+                    Button(tr("Nach Updates suchen")) { updater.check() }
                 }
-                Toggle("Automatisch nach Updates suchen", isOn: $autoUpdate)
-                TextField("GitHub-Repository (besitzer/notch-island)", text: Binding(get: { updater.repository }, set: { updater.repository = $0 }))
-                Text("Notch Island fragt dazu nur die öffentliche GitHub-Seite des Projekts ab. Beim Installieren wird die neue Version geladen, die App ausgetauscht und neu gestartet – deine Einstellungen und Freigaben bleiben.")
+                Toggle(tr("Automatisch nach Updates suchen"), isOn: $autoUpdate)
+                TextField(tr("GitHub-Repository (besitzer/notch-island)"), text: Binding(get: { updater.repository }, set: { updater.repository = $0 }))
+                Text(tr("Notch Island fragt dazu nur die öffentliche GitHub-Seite des Projekts ab. Beim Installieren wird die neue Version geladen, die App ausgetauscht und neu gestartet – deine Einstellungen und Freigaben bleiben."))
                     .font(.caption).foregroundStyle(.secondary)
             }
             }
@@ -268,7 +276,7 @@ struct SettingsView: View {
         p.canChooseDirectories = true
         p.canChooseFiles = false
         p.allowsMultipleSelection = false
-        p.prompt = "Hinzufügen"
+        p.prompt = tr("Hinzufügen")
         if p.runModal() == .OK, let u = p.url, !folders.contains(u.path) {
             folders.append(u.path)
             Prefs.folders = folders
@@ -288,7 +296,7 @@ struct SettingsView: View {
             let out = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
             claudeMessage = out.trimmingCharacters(in: .whitespacesAndNewlines) + (code ? "\nNeue Claude-Code-Sitzungen nutzen es automatisch." : "\nClaude Desktop einmal neu starten.")
         } catch {
-            claudeMessage = "Fehler: \(error.localizedDescription)"
+            claudeMessage = tr("Fehler: \(error.localizedDescription)")
         }
     }
 
@@ -306,6 +314,6 @@ struct SettingsView: View {
         let pb = NSPasteboard.general
         pb.clearContents()
         pb.setString(json, forType: .string)
-        claudeMessage = "Hooks kopiert – in ~/.claude/settings.json einfügen (Claude Code)."
+        claudeMessage = tr("Hooks kopiert – in ~/.claude/settings.json einfügen (Claude Code).")
     }
 }

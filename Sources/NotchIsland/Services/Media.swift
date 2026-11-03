@@ -26,8 +26,8 @@ struct NowPlaying: Equatable {
 
     var sourceName: String {
         switch source {
-        case .spotify: return "Spotify"
-        case .music: return "Musik"
+        case .spotify: return tr("Spotify")
+        case .music: return tr("Musik")
         case .youtube: return "YouTube"
         case .other: return AppInfo.name(appBundleID)
         }
@@ -119,7 +119,7 @@ final class MediaController: ObservableObject {
                         && NSWorkspace.shared.urlForApplication(withBundleIdentifier: b) != nil
                 }) {
                     chosen = NowPlaying(source: .other, appBundleID: other, title: AppInfo.name(other),
-                                        artist: "Audio-Wiedergabe", isPlaying: true, artworkKey: "app:" + other)
+                                        artist: tr("Audio-Wiedergabe"), isPlaying: true, artworkKey: "app:" + other)
                 }
             }
             if chosen == nil { chosen = cands.first }

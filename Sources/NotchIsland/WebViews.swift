@@ -32,7 +32,7 @@ struct WebTabView: View {
                                 .frame(width: 46, height: 46)
                                 .background(RoundedRectangle(cornerRadius: 13, style: .continuous)
                                     .strokeBorder(Color.white.opacity(0.25), style: StrokeStyle(lineWidth: 1.2, dash: [4, 4])))
-                            Text("Hinzufügen").font(.system(size: 10.5)).foregroundStyle(Color.dim)
+                            Text(tr("Hinzufügen")).font(.system(size: 10.5)).foregroundStyle(Color.dim)
                         }
                     }
                     .buttonStyle(PressableStyle())
@@ -44,7 +44,7 @@ struct WebTabView: View {
     private var addForm: some View {
         HStack(spacing: 8) {
             Image(systemName: "globe").foregroundStyle(Color.dim)
-            TextField("Adresse, z. B. moodle.uni.de", text: $urlText)
+            TextField(tr("Adresse, z. B. moodle.uni.de"), text: $urlText)
                 .textFieldStyle(.plain)
                 .focused($focused)
                 .onSubmit(save)
@@ -57,16 +57,16 @@ struct WebTabView: View {
                 Image(systemName: "doc.on.clipboard").font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.dim)
             }
             .buttonStyle(PressableStyle())
-            .help("Adresse aus der Zwischenablage einsetzen")
-            TextField("Name (optional)", text: $titleText)
+            .help(tr("Adresse aus der Zwischenablage einsetzen"))
+            TextField(tr("Name (optional)"), text: $titleText)
                 .textFieldStyle(.plain)
                 .onSubmit(save)
                 .frame(width: 120)
-            PillButton(title: "Aktuelle Seite", symbol: "safari") {
+            PillButton(title: tr("Aktuelle Seite"), symbol: "safari") {
                 web.addCurrentBrowserTab()
                 close()
             }
-            PillButton(title: "Hinzufügen", tint: .blue) { save() }
+            PillButton(title: tr("Hinzufügen"), tint: .blue) { save() }
             CircleButton(symbol: "xmark", size: 24) { close() }
         }
         .font(.system(size: 12.5))
@@ -132,15 +132,15 @@ struct WebTile: View {
             }
         }
         .contextMenu {
-            Button("Öffnen") { web.open(fav) }
-            Button("Adresse kopieren") {
+            Button(tr("Öffnen")) { web.open(fav) }
+            Button(tr("Adresse kopieren")) {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(fav.url, forType: .string)
             }
-            Button("Nach links") { web.move(fav.id, by: -1) }
-            Button("Nach rechts") { web.move(fav.id, by: 1) }
+            Button(tr("Nach links")) { web.move(fav.id, by: -1) }
+            Button(tr("Nach rechts")) { web.move(fav.id, by: 1) }
             Divider()
-            Button("Entfernen") { web.remove(fav.id) }
+            Button(tr("Entfernen")) { web.remove(fav.id) }
         }
         .help(fav.url)
     }

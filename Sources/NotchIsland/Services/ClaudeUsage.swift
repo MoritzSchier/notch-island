@@ -58,11 +58,11 @@ final class ClaudeUsage: NSObject, ObservableObject, WKNavigationDelegate {
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-        state = .error("Keine Verbindung zu claude.ai")
+        state = .error(tr("Keine Verbindung zu claude.ai"))
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-        state = .error("Keine Verbindung zu claude.ai")
+        state = .error(tr("Keine Verbindung zu claude.ai"))
     }
 
     private static let script = """
@@ -154,15 +154,15 @@ final class ClaudeUsage: NSObject, ObservableObject, WKNavigationDelegate {
     static func resetText(_ d: Date?, now: Date = Date()) -> String {
         guard let d else { return "" }
         let s = d.timeIntervalSince(now)
-        if s <= 0 { return "wird zurückgesetzt" }
+        if s <= 0 { return tr("wird zurückgesetzt") }
         let h = Int(s / 3600), m = Int(s.truncatingRemainder(dividingBy: 3600) / 60)
         if h >= 24 {
             let f = DateFormatter()
-            f.locale = Locale(identifier: "de_DE")
+            f.locale = Loc.locale
             f.dateFormat = "EEE HH:mm"
-            return "zurück am " + f.string(from: d)
+            return tr("zurück am ") + f.string(from: d)
         }
-        return h > 0 ? "zurück in \(h) Std \(m) Min" : "zurück in \(m) Min"
+        return h > 0 ? tr("zurück in \(h) Std \(m) Min") : tr("zurück in \(m) Min")
     }
 
     // MARK: Anmelden
@@ -171,7 +171,7 @@ final class ClaudeUsage: NSObject, ObservableObject, WKNavigationDelegate {
         start()
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 720),
                          styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
-        w.title = "Bei Claude anmelden – nur für die Nutzungsanzeige"
+        w.title = tr("Bei Claude anmelden – nur für die Nutzungsanzeige")
         w.isReleasedWhenClosed = false
         hostWindow.contentView = NSView()
         w.contentView = webView
@@ -227,19 +227,19 @@ struct ClaudeUsageStrip: View {
                     }
                 }
             case .loggedOut, .unknown:
-                Text("Nutzungslimit anzeigen").font(.system(size: 11, weight: .semibold))
-                Text("einmal in der App bei claude.ai anmelden").font(.system(size: 10.5)).foregroundStyle(Color.dim)
+                Text(tr("Nutzungslimit anzeigen")).font(.system(size: 11, weight: .semibold))
+                Text(tr("einmal in der App bei claude.ai anmelden")).font(.system(size: 10.5)).foregroundStyle(Color.dim)
                 Spacer(minLength: 0)
-                PillButton(title: "Anmelden", tint: Color.claude.opacity(0.9)) { ClaudeUsage.shared.showLogin() }
+                PillButton(title: tr("Anmelden"), tint: Color.claude.opacity(0.9)) { ClaudeUsage.shared.showLogin() }
             case .loading:
-                Text("Nutzung wird geladen …").font(.system(size: 11)).foregroundStyle(Color.dim)
+                Text(tr("Nutzung wird geladen …")).font(.system(size: 11)).foregroundStyle(Color.dim)
                 Spacer(minLength: 0)
             case .error(let e):
-                Text("Nutzung nicht verfügbar (\(e))").font(.system(size: 10.5)).foregroundStyle(Color.dim).lineLimit(1)
+                Text(tr("Nutzung nicht verfügbar (\(e))")).font(.system(size: 10.5)).foregroundStyle(Color.dim).lineLimit(1)
                 Spacer(minLength: 0)
-                PillButton(title: "Erneut") { ClaudeUsage.shared.refresh() }
+                PillButton(title: tr("Erneut")) { ClaudeUsage.shared.refresh() }
             case .ok:
-                Text("Keine Limit-Daten").font(.system(size: 11)).foregroundStyle(Color.dim)
+                Text(tr("Keine Limit-Daten")).font(.system(size: 11)).foregroundStyle(Color.dim)
                 Spacer(minLength: 0)
             }
         }

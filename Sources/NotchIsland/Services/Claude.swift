@@ -51,9 +51,9 @@ enum ClaudePrimaryMode: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .off: return "Aus"
-        case .auto: return "Bei großen Aufgaben"
-        case .always: return "Immer"
+        case .off: return tr("Aus")
+        case .auto: return tr("Bei großen Aufgaben")
+        case .always: return tr("Immer")
         }
     }
 }
@@ -143,7 +143,7 @@ final class ClaudeService: ObservableObject {
         if generating {
             negatives = 0
             if current == nil {
-                current = ClaudeTask(source: .desktop, title: "Claude denkt nach …", state: .running)
+                current = ClaudeTask(source: .desktop, title: tr("Claude denkt nach …"), state: .running)
             }
         } else if current?.source == .desktop {
             negatives += 1
@@ -226,7 +226,7 @@ final class ClaudeService: ObservableObject {
             let questionsHere = !r.questions.isEmpty
             if r.attentionWindow == nil, unreadable || (statusHint != nil && perms.isEmpty && !questionsHere) {
                 r.attentionWindow = win
-                r.attentionText = statusHint ?? "Claude wartet auf eine Antwort von dir"
+                r.attentionText = statusHint ?? tr("Claude wartet auf eine Antwort von dir")
             }
         }
         DispatchQueue.main.async { self.lastButtonLabels = labels }
@@ -267,11 +267,11 @@ final class ClaudeService: ObservableObject {
     func showAttention(subtitle: String?, chat: String?) {
         DevBridge.log("Aufmerksamkeit: \(subtitle ?? "") · \(chat ?? "")")
         NSSound(named: "Funk")?.play()
-        let sub = [subtitle, (chat?.isEmpty == false && chat != "Claude") ? "Chat: \(chat!)" : nil].compactMap { $0 }.joined(separator: " · ")
+        let sub = [subtitle, (chat?.isEmpty == false && chat != "Claude") ? tr("Chat: \(chat!)") : nil].compactMap { $0 }.joined(separator: " · ")
         IslandModel.shared.show(Toast(
-            symbol: "hand.raised.fill", tint: .claude, title: "Claude benötigt deine Aufmerksamkeit",
-            subtitle: sub.isEmpty ? "Im Chat antworten" : sub,
-            buttons: [ToastButton(title: "Zum Chat", tint: .claude) { [weak self] in self?.focusChat() }],
+            symbol: "hand.raised.fill", tint: .claude, title: tr("Claude benötigt deine Aufmerksamkeit"),
+            subtitle: sub.isEmpty ? tr("Im Chat antworten") : sub,
+            buttons: [ToastButton(title: tr("Zum Chat"), tint: .claude) { [weak self] in self?.focusChat() }],
             duration: 12, onTap: { [weak self] in self?.focusChat() }))
     }
 
@@ -304,7 +304,7 @@ final class ClaudeService: ObservableObject {
         if state == .done { t.progress = 1 }
         t.finishedAt = Date()
         if let title { t.title = title }
-        if t.source == .desktop { t.title = state == .error ? "Fehler" : "Antwort fertig" }
+        if t.source == .desktop { t.title = state == .error ? tr("Fehler") : tr("Antwort fertig") }
         current = nil
         negatives = 0
         history.insert(t, at: 0)
@@ -319,12 +319,12 @@ final class ClaudeService: ObservableObject {
         // Aktuelles Nutzungslimit gleich mit anzeigen (kurz neu laden, höchstens ~3 s warten)
         ClaudeUsage.shared.refresh {
             let usage = ClaudeUsage.shared.state == .ok ? ClaudeUsage.shared.windows : []
-            var sub = t.source == .desktop ? "Antwort bereit · \(elapsed)" : (t.detail ?? "Fertig · \(elapsed)")
-            if let s = ClaudeUsage.shared.session { sub += " · Limit \(Int(s.utilization.rounded())) %" }
+            var sub = t.source == .desktop ? tr("Antwort bereit · \(elapsed)") : (t.detail ?? tr("Fertig · \(elapsed)"))
+            if let s = ClaudeUsage.shared.session { sub += tr(" · Limit \(Int(s.utilization.rounded())) %") }
             IslandModel.shared.show(Toast(
                 symbol: failed ? "exclamationmark.triangle.fill" : "sparkle",
                 tint: failed ? .red : .claude,
-                title: failed ? "Claude: Problem aufgetreten" : (t.source == .desktop ? "Claude ist fertig" : t.title),
+                title: failed ? tr("Claude: Problem aufgetreten") : (t.source == .desktop ? tr("Claude ist fertig") : t.title),
                 subtitle: sub,
                 trailing: failed ? .none : (usage.isEmpty ? .check : .usage(usage)),
                 duration: front ? 3.5 : 7,
@@ -347,7 +347,7 @@ final class ClaudeService: ObservableObject {
             if let id = d["id"] as? String { dropExternal(id) }
         case "toast":
             IslandModel.shared.show(Toast(symbol: d["icon"] as? String ?? "sparkle", tint: .claude,
-                                          title: d["title"] as? String ?? "Hinweis",
+                                          title: d["title"] as? String ?? tr("Hinweis"),
                                           subtitle: d["subtitle"] as? String, duration: 5))
         case "timer":
             if let m = Self.number(d["minutes"]) {
@@ -366,7 +366,7 @@ final class ClaudeService: ObservableObject {
             case .running, .waiting:
                 let wasPrimary = isPrimary
                 if current == nil || current?.source == .desktop {
-                    current = ClaudeTask(source: src, title: title ?? (src == .code ? "Claude Code" : "Claude arbeitet …"),
+                    current = ClaudeTask(source: src, title: title ?? (src == .code ? tr("Claude Code") : tr("Claude arbeitet …")),
                                          detail: detail, progress: progress, state: state,
                                          startedAt: current?.startedAt ?? Date())
                 } else {
@@ -387,13 +387,13 @@ final class ClaudeService: ObservableObject {
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { IslandModel.shared.tab = .claude }
                 }
                 if state == .waiting {
-                    IslandModel.shared.show(Toast(symbol: "hand.raised.fill", tint: .yellow, title: "Claude wartet auf dich",
+                    IslandModel.shared.show(Toast(symbol: "hand.raised.fill", tint: .yellow, title: tr("Claude wartet auf dich"),
                                                   subtitle: detail ?? title, duration: 6,
                                                   onTap: { AppInfo.activate(Const.claudeBundle) }))
                 }
             case .done, .error:
                 if current == nil {
-                    current = ClaudeTask(source: src, title: title ?? "Claude", detail: detail, state: .running)
+                    current = ClaudeTask(source: src, title: title ?? tr("Claude"), detail: detail, state: .running)
                 }
                 if let detail { current?.detail = detail }
                 finish(state, title: title)
@@ -419,16 +419,16 @@ final class ClaudeService: ObservableObject {
 
     static func relative(_ d: Date, now: Date) -> String {
         let f = RelativeDateTimeFormatter()
-        f.locale = Locale(identifier: "de_DE")
+        f.locale = Loc.locale
         f.unitsStyle = .full
-        return "Fertig " + f.localizedString(for: d, relativeTo: now)
+        return tr("Fertig ") + f.localizedString(for: d, relativeTo: now)
     }
 
     /// Kleine Vorschau zum Ausprobieren in den Einstellungen.
     func demo() {
-        let steps = ["Quellen suchen", "12 Quellen lesen", "Zusammenfassen", "Bericht schreiben"]
+        let steps = [tr("Quellen suchen"), tr("12 Quellen lesen"), tr("Zusammenfassen"), tr("Bericht schreiben")]
         handleExternal(["state": "running", "title": "Recherche-Bericht", "detail": "Suche nach Quellen …", "steps": steps, "step": 1])
-        for (i, step) in ["Lese Quelle 4 von 12 …", "Fasse Kernaussagen zusammen …", "Schreibe Bericht (3 Seiten) …"].enumerated() {
+        for (i, step) in [tr("Lese Quelle 4 von 12 …"), tr("Fasse Kernaussagen zusammen …"), tr("Schreibe Bericht (3 Seiten) …")].enumerated() {
             DispatchQueue.main.asyncAfter(deadline: .now() + Double(i + 1) * 2.5) {
                 self.handleExternal(["state": "running", "detail": step, "step": i + 2])
             }

@@ -180,6 +180,7 @@ enum DevBridge {
             let texts = ["Hey! Kommst du heute Abend auch mit ins Kino? 🎬", "Wir treffen uns um 19:30 vor dem Eingang, ich hab schon Karten für uns alle besorgt.", "Sag Bescheid ✌️"]
             let i = parts.count > 1 ? (Int(parts[1]) ?? 0) : 0
             NotificationBannerMonitor.shared.deliver(bundleID: "net.whatsapp.WhatsApp", title: "Anna", subtitle: nil, body: texts[i % texts.count], element: nil)
+        case "lang": if parts.count > 1 { UserDefaults.standard.set(parts[1], forKey: Loc.key) }
         case "setup": SetupWindow.show()
         case "setupsnaps":
             // Bilder aller Assistenten-Seiten (setup_N.png)

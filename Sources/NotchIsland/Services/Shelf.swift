@@ -53,7 +53,7 @@ enum FileStash {
     }
 
     static func writeText(_ s: String) -> URL? {
-        let first = s.split(separator: "\n").first.map(String.init) ?? "Text"
+        let first = s.split(separator: "\n").first.map(String.init) ?? tr("Text")
         let clean = String(first.prefix(40)).replacingOccurrences(of: "/", with: "-").trimmingCharacters(in: .whitespaces)
         let u = unique(shelfDir.appendingPathComponent((clean.isEmpty ? "Text" : clean) + ".txt"))
         return (try? s.write(to: u, atomically: true, encoding: .utf8)) != nil ? u : nil
@@ -137,7 +137,7 @@ final class ShelfStore: ObservableObject {
         IslandModel.shared.tab = .shelf
         if added > 0 && !IslandModel.shared.isExpanded {
             IslandModel.shared.show(Toast(symbol: "tray.and.arrow.down.fill", tint: .blue,
-                                          title: added == 1 ? "In Ablage gelegt" : "\(added) Objekte abgelegt",
+                                          title: added == 1 ? tr("In Ablage gelegt") : "\(added) Objekte abgelegt",
                                           subtitle: urls.first?.lastPathComponent, duration: 2.2))
         }
     }
@@ -306,28 +306,28 @@ struct DropAction: Identifiable {
 enum DropActions {
     static func all() -> [DropAction] {
         var a: [DropAction] = [
-            DropAction(id: "shelf", title: "Ablage", icon: "tray.and.arrow.down.fill", tint: .white) { urls, _ in
+            DropAction(id: "shelf", title: tr("Ablage"), icon: "tray.and.arrow.down.fill", tint: .white) { urls, _ in
                 ShelfStore.shared.importCopies(urls)
             },
             DropAction(id: "airdrop", title: "AirDrop", icon: "dot.radiowaves.up.forward", tint: Color(red: 0.35, green: 0.7, blue: 1)) { urls, _ in
                 FileOps.airdrop(urls)
             },
-            DropAction(id: "share", title: "Teilen", icon: "square.and.arrow.up", tint: Color(red: 0.4, green: 0.85, blue: 0.6)) { urls, _ in
+            DropAction(id: "share", title: tr("Teilen"), icon: "square.and.arrow.up", tint: Color(red: 0.4, green: 0.85, blue: 0.6)) { urls, _ in
                 FileOps.share(urls)
             },
             DropAction(id: "zip", title: "ZIP", icon: "doc.zipper", tint: .yellow) { urls, _ in
                 FileOps.zip(urls)
             },
-            DropAction(id: "ocr", title: "Text erkennen", icon: "text.viewfinder", tint: .mint) { urls, _ in
+            DropAction(id: "ocr", title: tr("Text erkennen"), icon: "text.viewfinder", tint: .mint) { urls, _ in
                 FileOps.recognizeText(urls)
             },
-            DropAction(id: "compress", title: "Verkleinern", icon: "arrow.down.right.and.arrow.up.left", tint: .pink) { urls, _ in
+            DropAction(id: "compress", title: tr("Verkleinern"), icon: "arrow.down.right.and.arrow.up.left", tint: .pink) { urls, _ in
                 Compressor.compress(urls)
             },
-            DropAction(id: "downloads", title: "Downloads", icon: "arrow.down.circle.fill", tint: .blue) { urls, move in
+            DropAction(id: "downloads", title: tr("Downloads"), icon: "arrow.down.circle.fill", tint: .blue) { urls, move in
                 FileOps.copy(urls, to: FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Downloads"), move: move)
             },
-            DropAction(id: "path", title: "Pfad kopieren", icon: "link", tint: .gray) { urls, _ in
+            DropAction(id: "path", title: tr("Pfad kopieren"), icon: "link", tint: .gray) { urls, _ in
                 FileOps.copyPaths(urls)
             },
         ]
@@ -369,7 +369,7 @@ enum FileOps {
         let pb = NSPasteboard.general
         pb.clearContents()
         pb.setString(urls.map(\.path).joined(separator: "\n"), forType: .string)
-        showToast(Toast(symbol: "link", tint: .gray, title: "Pfad kopiert", subtitle: urls.first?.path, duration: 2))
+        showToast(Toast(symbol: "link", tint: .gray, title: tr("Pfad kopiert"), subtitle: urls.first?.path, duration: 2))
     }
 
     static func copy(_ urls: [URL], to folder: URL, move: Bool) {
@@ -385,8 +385,8 @@ enum FileOps {
             }
             let n = ok.count
             showToast(Toast(symbol: move ? "arrow.right.doc.on.clipboard" : "doc.on.doc.fill", tint: .cyan,
-                            title: n == 0 ? "Fehlgeschlagen" : "\(n) \(n == 1 ? "Objekt" : "Objekte") \(move ? "verschoben" : "kopiert")",
-                            subtitle: "nach \(folder.lastPathComponent)", trailing: n > 0 ? .check : .none, duration: 2.5,
+                            title: n == 0 ? tr("Fehlgeschlagen") : "\(n) \(n == 1 ? "Objekt" : "Objekte") \(move ? "verschoben" : "kopiert")",
+                            subtitle: tr("nach \(folder.lastPathComponent)"), trailing: n > 0 ? .check : .none, duration: 2.5,
                             onTap: { if !ok.isEmpty { NSWorkspace.shared.activateFileViewerSelecting(ok) } }))
         }
     }
@@ -395,7 +395,7 @@ enum FileOps {
         guard let first = urls.first else { return }
         DispatchQueue.global(qos: .userInitiated).async {
             let outDir = FileStash.outputDir(near: first)
-            let baseName = urls.count == 1 ? first.deletingPathExtension().lastPathComponent : "Archiv"
+            let baseName = urls.count == 1 ? first.deletingPathExtension().lastPathComponent : tr("Archiv")
             let dest = FileStash.unique(outDir.appendingPathComponent(baseName + ".zip"))
             let p = Process()
             if urls.count == 1 {
@@ -418,16 +418,16 @@ enum FileOps {
             DispatchQueue.main.async {
                 if success {
                     ShelfStore.shared.present([dest], title: dest.lastPathComponent,
-                                              subtitle: "ZIP erstellt · zum Ablegen ziehen", tint: .yellow)
+                                              subtitle: tr("ZIP erstellt · zum Ablegen ziehen"), tint: .yellow)
                 } else {
-                    IslandModel.shared.show(Toast(symbol: "exclamationmark.triangle.fill", tint: .red, title: "ZIP fehlgeschlagen", duration: 3))
+                    IslandModel.shared.show(Toast(symbol: "exclamationmark.triangle.fill", tint: .red, title: tr("ZIP fehlgeschlagen"), duration: 3))
                 }
             }
         }
     }
 
     static func recognizeText(_ urls: [URL]) {
-        showToast(Toast(symbol: "text.viewfinder", tint: .mint, title: "Text wird erkannt …", duration: 1.5))
+        showToast(Toast(symbol: "text.viewfinder", tint: .mint, title: tr("Text wird erkannt …"), duration: 1.5))
         DispatchQueue.global(qos: .userInitiated).async {
             var texts: [String] = []
             for u in urls {
@@ -452,15 +452,15 @@ enum FileOps {
             }
             DispatchQueue.main.async {
                 guard !texts.isEmpty else {
-                    IslandModel.shared.show(Toast(symbol: "text.magnifyingglass", tint: .orange, title: "Kein Text gefunden", duration: 2.5))
+                    IslandModel.shared.show(Toast(symbol: "text.magnifyingglass", tint: .orange, title: tr("Kein Text gefunden"), duration: 2.5))
                     return
                 }
                 let all = texts.joined(separator: "\n\n")
                 let pb = NSPasteboard.general
                 pb.clearContents()
                 pb.setString(all, forType: .string)
-                IslandModel.shared.show(Toast(symbol: "text.viewfinder", tint: .mint, title: "Text kopiert",
-                                              subtitle: "\(all.count) Zeichen in der Zwischenablage", trailing: .check, duration: 3))
+                IslandModel.shared.show(Toast(symbol: "text.viewfinder", tint: .mint, title: tr("Text kopiert"),
+                                              subtitle: tr("\(all.count) Zeichen in der Zwischenablage"), trailing: .check, duration: 3))
             }
         }
     }
@@ -484,9 +484,9 @@ enum FileOps {
             }
             DispatchQueue.main.async {
                 if out.isEmpty {
-                    IslandModel.shared.show(Toast(symbol: "photo", tint: .orange, title: "Keine Bilder gefunden", duration: 2.5))
+                    IslandModel.shared.show(Toast(symbol: "photo", tint: .orange, title: tr("Keine Bilder gefunden"), duration: 2.5))
                 } else {
-                    ShelfStore.shared.present(out, title: out[0].lastPathComponent, subtitle: "Verkleinert · zum Ablegen ziehen", tint: .pink)
+                    ShelfStore.shared.present(out, title: out[0].lastPathComponent, subtitle: tr("Verkleinert · zum Ablegen ziehen"), tint: .pink)
                 }
             }
         }

@@ -17,9 +17,9 @@ struct ShelfView: View {
                             .font(.system(size: 26, weight: .medium))
                             .foregroundStyle(Color.white.opacity(0.7))
                             .symbolEffect(.bounce, value: targeted)
-                        Text("Dateien, Bilder, Links oder Text hierher ziehen")
+                        Text(tr("Dateien, Bilder, Links oder Text hierher ziehen"))
                             .font(.system(size: 12.5, weight: .semibold))
-                        Text("Beim Ziehen auf die Notch erscheinen Aktionen: AirDrop, ZIP, Text erkennen …")
+                        Text(tr("Beim Ziehen auf die Notch erscheinen Aktionen: AirDrop, ZIP, Text erkennen …"))
                             .font(.system(size: 11)).foregroundStyle(Color.dim)
                     }
                 }
@@ -36,14 +36,14 @@ struct ShelfView: View {
                 }
                 .frame(height: 104)
                 HStack(spacing: 6) {
-                    Text(shelf.items.count == 1 ? "1 Objekt" : "\(shelf.items.count) Objekte")
+                    Text(shelf.items.count == 1 ? tr("1 Objekt") : "\(shelf.items.count) Objekte")
                         .font(.system(size: 11, weight: .medium)).foregroundStyle(Color.dim)
-                    Text("· Herausziehen zum Ablegen").font(.system(size: 11)).foregroundStyle(Color.white.opacity(0.35))
+                    Text(tr("· Herausziehen zum Ablegen")).font(.system(size: 11)).foregroundStyle(Color.white.opacity(0.35))
                     Spacer(minLength: 0)
                     PillButton(title: "AirDrop", symbol: "dot.radiowaves.up.forward") { FileOps.airdrop(shelf.urls) }
-                    PillButton(title: "Teilen", symbol: "square.and.arrow.up") { FileOps.share(shelf.urls) }
+                    PillButton(title: tr("Teilen"), symbol: "square.and.arrow.up") { FileOps.share(shelf.urls) }
                     PillButton(title: "ZIP", symbol: "doc.zipper") { FileOps.zip(shelf.urls) }
-                    PillButton(title: "Leeren", symbol: "trash", tint: Color.red.opacity(0.25), fg: .red) {
+                    PillButton(title: tr("Leeren"), symbol: "trash", tint: Color.red.opacity(0.25), fg: .red) {
                         withAnimation { shelf.clear() }
                     }
                 }
@@ -106,21 +106,21 @@ struct ShelfItemView: View {
         }
         .onTapGesture(count: 2) { NSWorkspace.shared.open(item.url) }
         .contextMenu {
-            Button("Öffnen") { NSWorkspace.shared.open(item.url) }
-            Button("Im Finder zeigen") { NSWorkspace.shared.activateFileViewerSelecting([item.url]) }
-            Button("Per AirDrop senden") { FileOps.airdrop([item.url]) }
-            Button("Teilen …") { FileOps.share([item.url]) }
-            Button("Pfad kopieren") { FileOps.copyPaths([item.url]) }
-            Button("Text erkennen") { FileOps.recognizeText([item.url]) }
-            Button("Verkleinern") { Compressor.compress([item.url]) }
+            Button(tr("Öffnen")) { NSWorkspace.shared.open(item.url) }
+            Button(tr("Im Finder zeigen")) { NSWorkspace.shared.activateFileViewerSelecting([item.url]) }
+            Button(tr("Per AirDrop senden")) { FileOps.airdrop([item.url]) }
+            Button(tr("Teilen …")) { FileOps.share([item.url]) }
+            Button(tr("Pfad kopieren")) { FileOps.copyPaths([item.url]) }
+            Button(tr("Text erkennen")) { FileOps.recognizeText([item.url]) }
+            Button(tr("Verkleinern")) { Compressor.compress([item.url]) }
             let conv = Converter.options(for: [item.url])
             if !conv.isEmpty {
-                Menu("Konvertieren in") {
+                Menu(tr("Konvertieren in")) {
                     ForEach(conv) { t in Button(t.title) { Converter.convert([item.url], to: t) } }
                 }
             }
             Divider()
-            Button("Aus Ablage entfernen") { ShelfStore.shared.remove(item.id) }
+            Button(tr("Aus Ablage entfernen")) { ShelfStore.shared.remove(item.id) }
         }
         .help(item.name)
         .task(id: item.id) { thumb = await Thumbnailer.thumbnail(for: item.url) }
@@ -137,7 +137,7 @@ struct DropZoneView: View {
         let conversions = Converter.options(for: model.dragURLs)
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                SectionLabel(text: "Loslassen zum Ausführen")
+                SectionLabel(text: tr("Loslassen zum Ausführen"))
                 if let kind = kindLabel { Text("· " + kind).font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.white.opacity(0.5)) }
                 Spacer()
                 Text("⌥ gedrückt = verschieben statt kopieren")
@@ -148,7 +148,7 @@ struct DropZoneView: View {
             }
             .frame(height: 104)
             if !conversions.isEmpty {
-                SectionLabel(text: "Konvertieren in")
+                SectionLabel(text: tr("Konvertieren in"))
                 HStack(spacing: 7) {
                     ForEach(conversions) { t in
                         DropTile(action: DropAction(id: "conv-" + t.rawValue, title: t.title, icon: t.icon, tint: t.tint) { urls, _ in
@@ -166,7 +166,7 @@ struct DropZoneView: View {
         let urls = model.dragURLs
         guard !urls.isEmpty else { return nil }
         let exts = Set(urls.map { $0.pathExtension.uppercased() }).filter { !$0.isEmpty }
-        let what = exts.isEmpty ? "Ordner" : exts.sorted().joined(separator: ", ")
+        let what = exts.isEmpty ? tr("Ordner") : exts.sorted().joined(separator: ", ")
         return urls.count == 1 ? "\(what)-Datei" : "\(urls.count) Dateien (\(what))"
     }
 }

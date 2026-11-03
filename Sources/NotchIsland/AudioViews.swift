@@ -52,7 +52,7 @@ final class AudioDevices: ObservableObject {
         guard AudioObjectGetPropertyData(CA.system, &a, 0, nil, &size, &ids) == noErr else { return }
         var outs: [AudioDevice] = [], ins: [AudioDevice] = []
         for id in ids {
-            let name = CA.string(id, CA.addr(kAudioObjectPropertyName)) ?? "Gerät"
+            let name = CA.string(id, CA.addr(kAudioObjectPropertyName)) ?? tr("Gerät")
             let transport = CA.getU32(id, CA.addr(kAudioDevicePropertyTransportType)) ?? 0
             let d = AudioDevice(id: id, name: name, transport: transport)
             if Self.hasStreams(id, input: false) { outs.append(d) }
@@ -116,10 +116,10 @@ struct AudioTabView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
-            column(title: "Ausgabe", devices: audio.outputs, selected: audio.defaultOutput, input: false) {
+            column(title: tr("Ausgabe"), devices: audio.outputs, selected: audio.defaultOutput, input: false) {
                 VolumeRow()
             }
-            column(title: "Eingabe", devices: audio.inputs, selected: audio.defaultInput, input: true) {
+            column(title: tr("Eingabe"), devices: audio.inputs, selected: audio.defaultInput, input: true) {
                 HStack(spacing: 9) {
                     Button { calls.toggleMute() } label: {
                         Image(systemName: calls.micMuted ? "mic.slash.fill" : "mic.fill")
@@ -128,12 +128,12 @@ struct AudioTabView: View {
                             .frame(width: 16)
                     }
                     .buttonStyle(PressableStyle())
-                    .help(calls.micMuted ? "Mikrofon einschalten" : "Mikrofon stummschalten")
+                    .help(calls.micMuted ? tr("Mikrofon einschalten") : tr("Mikrofon stummschalten"))
                     if audio.inputVolume != nil {
                         IslandSlider(value: Binding(get: { audio.inputVolume ?? 0 }, set: { audio.setInputVolume($0) }))
                         Image(systemName: "waveform").font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.white.opacity(0.65))
                     } else {
-                        Text("Pegel nicht regelbar").font(.system(size: 10.5)).foregroundStyle(Color.white.opacity(0.4))
+                        Text(tr("Pegel nicht regelbar")).font(.system(size: 10.5)).foregroundStyle(Color.white.opacity(0.4))
                         Spacer(minLength: 0)
                     }
                 }

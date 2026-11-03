@@ -34,15 +34,15 @@ enum IslandTab: String, CaseIterable, Identifiable {
     }
     var title: String {
         switch self {
-        case .home: return "Start"
-        case .shelf: return "Ablage"
-        case .timer: return "Timer"
-        case .claude: return "Claude"
-        case .web: return "Websites"
-        case .colors: return "Farben"
-        case .mirror: return "Spiegel"
-        case .audio: return "Audio"
-        case .widgets: return "Widgets"
+        case .home: return tr("Start")
+        case .shelf: return tr("Ablage")
+        case .timer: return tr("Timer")
+        case .claude: return tr("Claude")
+        case .web: return tr("Websites")
+        case .colors: return tr("Farben")
+        case .mirror: return tr("Spiegel")
+        case .audio: return tr("Audio")
+        case .widgets: return tr("Widgets")
         }
     }
 }
@@ -50,6 +50,7 @@ enum IslandTab: String, CaseIterable, Identifiable {
 enum WidgetTab: String, CaseIterable, Identifiable {
     case system = "System", clipboard = "Zwischenablage", note = "Notiz"
     var id: String { rawValue }
+    var title: String { tr(LocString(stringLiteral: rawValue)) }
     var icon: String {
         switch self {
         case .system: return "gauge.with.dots.needle.33percent"

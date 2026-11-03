@@ -32,6 +32,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         buildWindows()
         setupStatusItem()
         setupEditMenu()
+        // Sprache gewechselt → Menüs neu aufbauen
+        var lastLang = Loc.current
+        NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            guard Loc.current != lastLang else { return }
+            lastLang = Loc.current
+            self?.setupStatusItem()
+            self?.setupEditMenu()
+        }
         // Dienste erst nach dem ersten Bild starten – falls macOS nach Berechtigungen fragt, ist die Insel schon da.
         DispatchQueue.main.async {
             AudioProcessMonitor.shared.start()
@@ -78,8 +86,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Begrüßung
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-            IslandModel.shared.show(Toast(symbol: "sparkles", tint: .white, title: "Notch Island ist aktiv",
-                                          subtitle: "Zeige mit der Maus auf die Notch", duration: 3))
+            IslandModel.shared.show(Toast(symbol: "sparkles", tint: .white, title: tr("Notch Island ist aktiv"),
+                                          subtitle: tr("Zeige mit der Maus auf die Notch"), duration: 3))
         }
     }
 
@@ -121,35 +129,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let main = NSMenu()
         let appItem = NSMenuItem()
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "Notch Island beenden", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: tr("Notch Island beenden"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu
         main.addItem(appItem)
         let editItem = NSMenuItem()
-        let edit = NSMenu(title: "Bearbeiten")
-        edit.addItem(withTitle: "Widerrufen", action: Selector(("undo:")), keyEquivalent: "z")
-        let redo = edit.addItem(withTitle: "Wiederholen", action: Selector(("redo:")), keyEquivalent: "z")
+        let edit = NSMenu(title: tr("Bearbeiten"))
+        edit.addItem(withTitle: tr("Widerrufen"), action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = edit.addItem(withTitle: tr("Wiederholen"), action: Selector(("redo:")), keyEquivalent: "z")
         redo.keyEquivalentModifierMask = [.command, .shift]
         edit.addItem(.separator())
-        edit.addItem(withTitle: "Ausschneiden", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
-        edit.addItem(withTitle: "Kopieren", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
-        edit.addItem(withTitle: "Einsetzen", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
-        edit.addItem(withTitle: "Alles auswählen", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        edit.addItem(withTitle: tr("Ausschneiden"), action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        edit.addItem(withTitle: tr("Kopieren"), action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: tr("Einsetzen"), action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        edit.addItem(withTitle: tr("Alles auswählen"), action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         editItem.submenu = edit
         main.addItem(editItem)
         NSApp.mainMenu = main
     }
 
     private func setupStatusItem() {
+        if let old = statusItem { NSStatusBar.system.removeStatusItem(old) }
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        item.button?.image = NSImage(systemSymbolName: "capsule.fill", accessibilityDescription: "Notch Island")
+        item.button?.image = NSImage(systemSymbolName: "capsule.fill", accessibilityDescription: tr("Notch Island"))
         item.button?.image?.isTemplate = true
         let menu = NSMenu()
-        menu.addItem(withTitle: "Insel öffnen", action: #selector(openIsland), keyEquivalent: "").target = self
-        menu.addItem(withTitle: "Einstellungen …", action: #selector(openSettings), keyEquivalent: ",").target = self
-        menu.addItem(withTitle: "Einrichtung …", action: #selector(openSetup), keyEquivalent: "").target = self
-        menu.addItem(withTitle: "Nach Updates suchen", action: #selector(checkUpdates), keyEquivalent: "").target = self
+        menu.addItem(withTitle: tr("Insel öffnen"), action: #selector(openIsland), keyEquivalent: "").target = self
+        menu.addItem(withTitle: tr("Einstellungen …"), action: #selector(openSettings), keyEquivalent: ",").target = self
+        menu.addItem(withTitle: tr("Einrichtung …"), action: #selector(openSetup), keyEquivalent: "").target = self
+        menu.addItem(withTitle: tr("Nach Updates suchen"), action: #selector(checkUpdates), keyEquivalent: "").target = self
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Notch Island beenden", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        menu.addItem(withTitle: tr("Notch Island beenden"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         item.menu = menu
         statusItem = item
     }
@@ -165,9 +174,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Updater.shared.check()
         DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
             switch Updater.shared.state {
-            case .upToDate: IslandModel.shared.show(Toast(symbol: "checkmark.circle.fill", tint: .green, title: "Notch Island ist aktuell", subtitle: "Version \(Updater.shared.currentVersion)", duration: 3))
-            case .notConfigured: IslandModel.shared.show(Toast(symbol: "questionmark.circle", tint: .orange, title: "Kein Update-Repository", subtitle: "Einstellungen › Update", duration: 3))
-            case .failed(let e): IslandModel.shared.show(Toast(symbol: "exclamationmark.triangle.fill", tint: .orange, title: "Update-Prüfung fehlgeschlagen", subtitle: e, duration: 4))
+            case .upToDate: IslandModel.shared.show(Toast(symbol: "checkmark.circle.fill", tint: .green, title: tr("Notch Island ist aktuell"), subtitle: tr("Version \(Updater.shared.currentVersion)"), duration: 3))
+            case .notConfigured: IslandModel.shared.show(Toast(symbol: "questionmark.circle", tint: .orange, title: tr("Kein Update-Repository"), subtitle: tr("Einstellungen › Update"), duration: 3))
+            case .failed(let e): IslandModel.shared.show(Toast(symbol: "exclamationmark.triangle.fill", tint: .orange, title: tr("Update-Prüfung fehlgeschlagen"), subtitle: e, duration: 4))
             default: break
             }
         }
@@ -178,7 +187,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if settingsWindow == nil {
             let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 820, height: 620),
                              styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
-            w.title = "Notch Island"
+            w.title = tr("Notch Island")
             w.isReleasedWhenClosed = false
             w.contentView = NSHostingView(rootView: SettingsView())
             w.center()

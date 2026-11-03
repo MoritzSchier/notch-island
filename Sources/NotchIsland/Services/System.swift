@@ -92,10 +92,10 @@ final class BatteryMonitor: ObservableObject {
     }
 
     var statusText: String {
-        if !hasBattery { return "Netzbetrieb" }
-        if onAC && level >= 0.995 { return "Vollständig geladen" }
-        if onAC { return isCharging ? (minutesLeft.map { "Lädt · voll in \(Self.hm($0))" } ?? "Lädt") : "Am Netzteil, lädt nicht" }
-        return minutesLeft.map { "Noch etwa \(Self.hm($0))" } ?? "Akkubetrieb"
+        if !hasBattery { return tr("Netzbetrieb") }
+        if onAC && level >= 0.995 { return tr("Vollständig geladen") }
+        if onAC { return isCharging ? (minutesLeft.map { tr("Lädt · voll in \(Self.hm($0))") } ?? tr("Lädt")) : tr("Am Netzteil, lädt nicht") }
+        return minutesLeft.map { tr("Noch etwa \(Self.hm($0))") } ?? tr("Akkubetrieb")
     }
 
     func readDetails() {
@@ -109,14 +109,14 @@ final class BatteryMonitor: ObservableObject {
             let bd = d["BatteryData"] as? [String: Any] ?? [:]
             func int(_ k: String) -> Int? { (d[k] as? NSNumber)?.intValue ?? (bd[k] as? NSNumber)?.intValue }
             func bdInt(_ k: String) -> Int? { (bd[k] as? NSNumber)?.intValue }
-            let mv = Double(int("Voltage") ?? int("AppleRawBatteryVoltage") ?? 0)
+            let mv = Double(int(tr("Voltage")) ?? int("AppleRawBatteryVoltage") ?? 0)
             let rawAmp = (d["InstantAmperage"] as? NSNumber ?? d["Amperage"] as? NSNumber)?.int64Value ?? 0
             let ma = Double(Int16(truncatingIfNeeded: rawAmp))
             // mAh-Werte: ältere Macs direkt, neuere (Apple Silicon) im Unterverzeichnis "BatteryData"
             let cur = int("AppleRawCurrentCapacity") ?? bdInt("RemainingCapacity") ?? 0
             let max = int("AppleRawMaxCapacity") ?? bdInt("FullChargeCapacity") ?? bdInt("NominalChargeCapacity") ?? 0
             let design = (d["DesignCapacity"] as? NSNumber)?.intValue ?? bdInt("DesignCapacity") ?? 0
-            let temp = (int("Temperature") ?? int("VirtualTemperature")).flatMap { $0 > 0 ? Double($0) / 100 : nil }
+            let temp = (int(tr("Temperature")) ?? int("VirtualTemperature")).flatMap { $0 > 0 ? Double($0) / 100 : nil }
             var adapter: Int?
             if let ad = d["AdapterDetails"] as? [String: Any], let w = (ad["Watts"] as? NSNumber)?.intValue, w > 0 { adapter = w }
             var det = BatteryDetails(watts: mv * ma / 1_000_000, volts: mv / 1000, amps: ma / 1000,
@@ -133,7 +133,7 @@ final class BatteryMonitor: ObservableObject {
         }
     }
 
-    private static func hm(_ m: Int) -> String { m >= 60 ? "\(m / 60) Std \(m % 60) Min" : "\(m) Min" }
+    private static func hm(_ m: Int) -> String { m >= 60 ? tr("\(m / 60) Std \(m % 60) Min") : tr("\(m) Min") }
 
     private func read() {
         guard let info = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
@@ -159,14 +159,14 @@ final class BatteryMonitor: ObservableObject {
             guard started, Prefs.on(Prefs.showBattery) else { continue }
             if newAC && !wasAC {
                 warned = []
-                IslandModel.shared.show(Toast(symbol: "bolt.fill", tint: .green, title: "Lädt",
-                                              subtitle: newLevel >= 0.995 ? "Vollständig geladen" : nil,
+                IslandModel.shared.show(Toast(symbol: "bolt.fill", tint: .green, title: tr("Lädt"),
+                                              subtitle: newLevel >= 0.995 ? tr("Vollständig geladen") : nil,
                                               trailing: .battery(newLevel, charging: true), duration: 3))
             } else if !newAC {
                 for threshold in [20, 10, 5] where Int((newLevel * 100).rounded()) <= threshold && !warned.contains(threshold) {
                     warned.insert(threshold)
-                    IslandModel.shared.show(Toast(symbol: "battery.25", tint: .red, title: "Akku schwach",
-                                                  subtitle: "Noch \(threshold) % verbleibend",
+                    IslandModel.shared.show(Toast(symbol: "battery.25", tint: .red, title: tr("Akku schwach"),
+                                                  subtitle: tr("Noch \(threshold) % verbleibend"),
                                                   trailing: .battery(newLevel, charging: false), duration: 5))
                     break
                 }
@@ -218,7 +218,7 @@ final class BluetoothMonitor: NSObject, ObservableObject {
             guard let self, device.isConnected() else { return }
             self.refresh()
             let d = Self.make(device)
-            IslandModel.shared.show(Toast(symbol: d.symbol, tint: .white, title: d.name, subtitle: "Verbunden",
+            IslandModel.shared.show(Toast(symbol: d.symbol, tint: .white, title: d.name, subtitle: tr("Verbunden"),
                                           trailing: d.battery.map { .ring(Double($0) / 100) } ?? .check, duration: 3.5))
         }
     }
@@ -236,7 +236,7 @@ final class BluetoothMonitor: NSObject, ObservableObject {
     }
 
     static func make(_ d: IOBluetoothDevice) -> BTDevice {
-        let name = d.name ?? "Bluetooth-Gerät"
+        let name = d.name ?? tr("Bluetooth-Gerät")
         return BTDevice(id: d.addressString ?? name, name: name, battery: battery(d), symbol: symbol(for: name))
     }
 
@@ -320,20 +320,20 @@ final class CalendarService: ObservableObject {
 
     static func shortCountdown(to d: Date, now: Date) -> String {
         let m = Int((d.timeIntervalSince(now) / 60).rounded(.up))
-        if m <= 0 { return "Jetzt" }
-        return "in \(m) Min"
+        if m <= 0 { return tr("Jetzt") }
+        return tr("in \(m) Min")
     }
 
     static func describe(_ e: EKEvent, now: Date) -> String {
         let tf = DateFormatter()
-        tf.locale = Locale(identifier: "de_DE")
+        tf.locale = Loc.locale
         tf.dateFormat = "HH:mm"
         let start = tf.string(from: e.startDate), end = tf.string(from: e.endDate)
-        if e.startDate <= now { return "Läuft · bis \(end)" }
+        if e.startDate <= now { return tr("Läuft · bis \(end)") }
         let cal = Calendar.current
-        let day = cal.isDateInToday(e.startDate) ? "Heute" : (cal.isDateInTomorrow(e.startDate) ? "Morgen" : "")
+        let day = cal.isDateInToday(e.startDate) ? tr("Heute") : (cal.isDateInTomorrow(e.startDate) ? tr("Morgen") : "")
         let mins = Int(e.startDate.timeIntervalSince(now) / 60)
-        let rel = mins < 60 ? " · in \(Swift.max(1, mins)) Min" : ""
+        let rel = mins < 60 ? tr(" · in \(Swift.max(1, mins)) Min") : ""
         return "\(day) \(start)–\(end)\(rel)".trimmingCharacters(in: .whitespaces)
     }
 
@@ -424,7 +424,7 @@ final class DownloadMonitor: ObservableObject {
             guard FileManager.default.fileExists(atPath: final.path) else { continue }
             if Prefs.on(Prefs.downloadsToShelf) { ShelfStore.shared.importCopies([final]) }
             IslandModel.shared.show(Toast(image: NSWorkspace.shared.icon(forFile: final.path), tint: .blue,
-                                          title: "Download abgeschlossen", subtitle: f.name, trailing: .check, duration: 4,
+                                          title: tr("Download abgeschlossen"), subtitle: f.name, trailing: .check, duration: 4,
                                           onTap: { NSWorkspace.shared.activateFileViewerSelecting([final]) }))
         }
     }
@@ -547,7 +547,7 @@ final class DockBadgeMonitor: ObservableObject {
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
                 if NotificationBannerMonitor.shared.shownRecently(b.bundleID, within: 25) { return }
                 IslandModel.shared.show(Toast(image: AppInfo.icon(b.bundleID), tint: .red, title: b.name,
-                                              subtitle: diff == 1 ? "Neue Mitteilung" : "\(diff) neue Mitteilungen",
+                                              subtitle: diff == 1 ? tr("Neue Mitteilung") : "\(diff) neue Mitteilungen",
                                               trailing: .text(b.label), duration: 4,
                                               onTap: { AppInfo.activate(b.bundleID) }))
             }

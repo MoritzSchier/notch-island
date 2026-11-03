@@ -78,7 +78,7 @@ final class Updater: ObservableObject {
                 let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
                 guard err == nil, code == 200, let data,
                       let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                    self.state = code == 404 ? .upToDate : .failed(err?.localizedDescription ?? "GitHub antwortet nicht (\(code))")
+                    self.state = code == 404 ? .upToDate : .failed(err?.localizedDescription ?? tr("GitHub antwortet nicht (\(code))"))
                     return
                 }
                 let tag = (obj["tag_name"] as? String ?? "").trimmingCharacters(in: CharacterSet(charactersIn: "vV "))
@@ -115,9 +115,9 @@ final class Updater: ObservableObject {
 
     private func announce(_ r: Release) {
         IslandModel.shared.show(Toast(
-            symbol: "arrow.down.circle.fill", tint: .blue, title: "Update verfügbar",
-            subtitle: "Notch Island \(r.version) · du hast \(currentVersion)",
-            buttons: [ToastButton(title: "Installieren", tint: .blue) { [weak self] in self?.install() }],
+            symbol: "arrow.down.circle.fill", tint: .blue, title: tr("Update verfügbar"),
+            subtitle: tr("Notch Island \(r.version) · du hast \(currentVersion)"),
+            buttons: [ToastButton(title: tr("Installieren"), tint: .blue) { [weak self] in self?.install() }],
             duration: 12))
     }
 
@@ -126,13 +126,13 @@ final class Updater: ObservableObject {
     func install() {
         guard let r = available else { return }
         state = .downloading
-        IslandModel.shared.show(Toast(symbol: "arrow.down.circle", tint: .blue, title: "Update wird geladen …", subtitle: r.version, duration: 4))
+        IslandModel.shared.show(Toast(symbol: "arrow.down.circle", tint: .blue, title: tr("Update wird geladen …"), subtitle: r.version, duration: 4))
         URLSession.shared.downloadTask(with: r.zipURL) { [weak self] tmp, resp, err in
             guard let self else { return }
             let finalOK = resp?.url.map(Self.isTrustedDownload) ?? false
             let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
             guard let tmp, err == nil, finalOK, code == 200 else {
-                DispatchQueue.main.async { self.fail("Download fehlgeschlagen") }
+                DispatchQueue.main.async { self.fail(tr("Download fehlgeschlagen")) }
                 return
             }
             let work = FileManager.default.temporaryDirectory.appendingPathComponent("NotchIslandUpdate-\(UUID().uuidString)")
@@ -164,7 +164,7 @@ final class Updater: ObservableObject {
               FileManager.default.isExecutableFile(atPath: newApp.appendingPathComponent("Contents/MacOS/NotchIsland").path),
               let newVersion = info["CFBundleShortVersionString"] as? String,
               Self.isNewer(newVersion, than: currentVersion) else {
-            DispatchQueue.main.async { self.fail("Update-Datei ist ungültig oder nicht neuer") }
+            DispatchQueue.main.async { self.fail(tr("Update-Datei ist ungültig oder nicht neuer")) }
             return
         }
         // Gleiche Kennung wie die installierte App → Freigaben (Bedienungshilfen …) bleiben erhalten
@@ -178,7 +178,7 @@ final class Updater: ObservableObject {
         let mcp = newApp.appendingPathComponent("Contents/MacOS/notch-mcp").path
         _ = run("/usr/bin/codesign", ["--force", "--sign", "-", "--identifier", id + ".mcp", "-r=designated => identifier \"\(id).mcp\"", mcp])
         guard run("/usr/bin/codesign", ["--force", "--sign", "-", "--identifier", id, "-r=designated => identifier \"\(id)\"", newApp.path]) else {
-            DispatchQueue.main.async { self.fail("Signieren fehlgeschlagen") }
+            DispatchQueue.main.async { self.fail(tr("Signieren fehlgeschlagen")) }
             return
         }
         // Austausch erst, wenn diese App beendet ist – per kleinem Hilfsskript
@@ -200,17 +200,17 @@ final class Updater: ObservableObject {
         p.executableURL = URL(fileURLWithPath: "/bin/bash")
         p.arguments = [sh.path, String(pid), target, newApp.path, work.path]
         do { try p.run() } catch {
-            DispatchQueue.main.async { self.fail("Austausch fehlgeschlagen") }
+            DispatchQueue.main.async { self.fail(tr("Austausch fehlgeschlagen")) }
             return
         }
         DispatchQueue.main.async {
-            IslandModel.shared.show(Toast(symbol: "checkmark.circle.fill", tint: .green, title: "Update installiert", subtitle: "Notch Island startet neu …", duration: 2))
+            IslandModel.shared.show(Toast(symbol: "checkmark.circle.fill", tint: .green, title: tr("Update installiert"), subtitle: tr("Notch Island startet neu …"), duration: 2))
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { NSApp.terminate(nil) }
         }
     }
 
     private func fail(_ msg: String) {
         state = .failed(msg)
-        IslandModel.shared.show(Toast(symbol: "exclamationmark.triangle.fill", tint: .orange, title: "Update fehlgeschlagen", subtitle: msg, duration: 5))
+        IslandModel.shared.show(Toast(symbol: "exclamationmark.triangle.fill", tint: .orange, title: tr("Update fehlgeschlagen"), subtitle: msg, duration: 5))
     }
 }

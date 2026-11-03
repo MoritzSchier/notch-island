@@ -164,11 +164,11 @@ struct ColorTabView: View {
                 .frame(width: 96, height: 96)
                 .animation(.easeInOut(duration: 0.25), value: store.current)
                 .onTapGesture { if let c = store.current { ColorStore.copy(c.hex) } }
-                .help("Klicken kopiert den HEX-Code")
+                .help(tr("Klicken kopiert den HEX-Code"))
                 Button { store.pick() } label: {
                     HStack(spacing: 5) {
                         Image(systemName: "eyedropper").font(.system(size: 11, weight: .semibold))
-                        Text(store.picking ? "Klicke …" : "Pipette").font(.system(size: 11.5, weight: .semibold))
+                        Text(store.picking ? tr("Klicke …") : tr("Pipette")).font(.system(size: 11.5, weight: .semibold))
                     }
                     .foregroundStyle(.black)
                     .frame(width: 96, height: 28)
@@ -200,7 +200,7 @@ struct ColorTabView: View {
                     if Opt.on(Opt.colorHSL) { ColorFormatRow(label: "HSL", value: c.hslString) }
                     if Opt.on(Opt.colorSwiftUI) { ColorFormatRow(label: "SwiftUI", value: c.swiftUI) }
                 } else {
-                    Text("Mit der Pipette eine Farbe irgendwo auf dem Bildschirm aufnehmen – oder einen HEX-Code eingeben.")
+                    Text(tr("Mit der Pipette eine Farbe irgendwo auf dem Bildschirm aufnehmen – oder einen HEX-Code eingeben."))
                         .font(.system(size: 12)).foregroundStyle(Color.dim)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -211,17 +211,17 @@ struct ColorTabView: View {
             // Verlauf
             VStack(alignment: .leading, spacing: 7) {
                 HStack {
-                    SectionLabel(text: "Verlauf")
+                    SectionLabel(text: tr("Verlauf"))
                     Spacer()
                     if !store.history.isEmpty {
                         Button { withAnimation { store.clear() } } label: {
-                            Text("Leeren").font(.system(size: 10, weight: .semibold)).foregroundStyle(.red)
+                            Text(tr("Leeren")).font(.system(size: 10, weight: .semibold)).foregroundStyle(.red)
                         }
                         .buttonStyle(.plain)
                     }
                 }
                 if store.history.isEmpty {
-                    Text("Noch keine Farben").font(.system(size: 11)).foregroundStyle(Color.white.opacity(0.4))
+                    Text(tr("Noch keine Farben")).font(.system(size: 11)).foregroundStyle(Color.white.opacity(0.4))
                 }
                 LazyVGrid(columns: Array(repeating: GridItem(.fixed(26), spacing: 7), count: 6), spacing: 7) {
                     ForEach(store.history, id: \.self) { hex in
@@ -247,7 +247,7 @@ struct ColorFormatRow: View {
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(Color.white.opacity(0.45))
                 .frame(width: 46, alignment: .leading)
-            Text(copied ? "Kopiert" : value)
+            Text(copied ? tr("Kopiert") : value)
                 .font(.system(size: 12, weight: .medium, design: .monospaced))
                 .foregroundStyle(copied ? Color.green : Color.white)
                 .lineLimit(1)
@@ -266,7 +266,7 @@ struct ColorFormatRow: View {
             withAnimation(.easeInOut(duration: 0.15)) { copied = true }
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { withAnimation { copied = false } }
         }
-        .help("Klicken zum Kopieren")
+        .help(tr("Klicken zum Kopieren"))
     }
 }
 
@@ -287,10 +287,10 @@ struct HistorySwatch: View {
             .onHover { hover = $0 }
             .onTapGesture { ColorStore.shared.select(hex) }
             .contextMenu {
-                Button("HEX kopieren") { ColorStore.copy(hex) }
-                if let c { Button("RGB kopieren") { ColorStore.copy(c.rgbString) } }
+                Button(tr("HEX kopieren")) { ColorStore.copy(hex) }
+                if let c { Button(tr("RGB kopieren")) { ColorStore.copy(c.rgbString) } }
                 Divider()
-                Button("Entfernen") { ColorStore.shared.remove(hex) }
+                Button(tr("Entfernen")) { ColorStore.shared.remove(hex) }
             }
             .help(hex)
     }

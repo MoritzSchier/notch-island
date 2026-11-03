@@ -108,7 +108,7 @@ enum PermissionScanner {
                 let options = unique.enumerated().map { PermissionPrompt.Option(id: $0.offset, label: $0.element.1, role: $0.element.2) }
                 let labels = Set(unique.map { $0.1 })
                 let info = texts.filter { !labels.contains($0) }
-                let title = info.first.map { String($0.prefix(90)) } ?? "Claude braucht deine Erlaubnis"
+                let title = info.first.map { String($0.prefix(90)) } ?? tr("Claude braucht deine Erlaubnis")
                 let detail = info.dropFirst().prefix(3).joined(separator: " · ")
                 let key = options.map(\.label).joined(separator: "|") + "|" + String(title.prefix(60))
                 return Found(prompt: PermissionPrompt(key: key, title: title, detail: String(detail.prefix(180)), options: options),
@@ -188,7 +188,7 @@ enum QuestionScanner {
         }
         let key = "q|" + question + "|" + optionEls.map(\.1).joined(separator: "|")
         let prompt = PermissionPrompt(kind: .question, key: key, title: String(question.prefix(140)),
-                                      detail: multi ? "Mehrere Antworten möglich" : "",
+                                      detail: multi ? tr("Mehrere Antworten möglich") : "",
                                       options: options, progress: progress, multi: multi)
         return PermissionScanner.Found(prompt: prompt, elements: elements)
     }
@@ -267,7 +267,7 @@ extension ClaudeService {
                 title: option.label, subtitle: "an Claude gesendet", trailing: option.role == .deny ? .none : .check, duration: 1.8))
         } else if option.id >= 0 && !permissionIsDemo {
             // Nur wenn die Antwort nicht ankam: Hinweis mit Sprung zum richtigen Chat
-            showAttention(subtitle: "„\(option.label)“ hat nicht geklappt – bitte im Chat bestätigen", chat: nil)
+            showAttention(subtitle: tr("„\(option.label)“ hat nicht geklappt – bitte im Chat bestätigen"), chat: nil)
         }
         permissionIsDemo = false
         IslandModel.shared.setNeedsRecompute()
@@ -328,9 +328,9 @@ extension ClaudeService {
     func addExternalPrompt(id: String, title: String, detail: String) {
         guard !externalPrompts.contains(where: { $0.key == "ext|" + id }) else { return }
         let p = PermissionPrompt(key: "ext|" + id, title: title, detail: detail,
-                                 options: [.init(id: 0, label: "Ablehnen", role: .deny),
-                                           .init(id: 1, label: "Erlauben", role: .allow),
-                                           .init(id: 2, label: "Im Terminal", role: .other)])
+                                 options: [.init(id: 0, label: tr("Ablehnen"), role: .deny),
+                                           .init(id: 1, label: tr("Erlauben"), role: .allow),
+                                           .init(id: 2, label: tr("Im Terminal"), role: .other)])
         externalPrompts.append(p)
         // Nach 10 Minuten verfällt die Anfrage (der Hook gibt dann an das Terminal zurück).
         // Wird im Terminal geantwortet, endet der Hook – dann verschwindet die Anfrage auch hier.
@@ -364,11 +364,11 @@ extension ClaudeService {
         permissionIsDemo = true
         permissionElements = []
         permission = PermissionPrompt(kind: .question, key: "demoq", title: "Welchen Weg möchtest du gehen?",
-                                      detail: "Claude möchte wissen, wie es weitermachen soll",
-                                      options: [.init(id: 0, label: "Schnell & einfach", role: .other, detail: "Nur das Nötigste, in 5 Minuten fertig"),
-                                                .init(id: 1, label: "Gründlich", role: .other, detail: "Alles testen und dokumentieren"),
-                                                .init(id: 2, label: "Erst einen Plan zeigen", role: .other, detail: ""),
-                                                .init(id: 3, label: "Überspringen", role: .deny)], progress: "1 von 2")
+                                      detail: tr("Claude möchte wissen, wie es weitermachen soll"),
+                                      options: [.init(id: 0, label: tr("Schnell & einfach"), role: .other, detail: tr("Nur das Nötigste, in 5 Minuten fertig")),
+                                                .init(id: 1, label: tr("Gründlich"), role: .other, detail: tr("Alles testen und dokumentieren")),
+                                                .init(id: 2, label: tr("Erst einen Plan zeigen"), role: .other, detail: ""),
+                                                .init(id: 3, label: tr("Überspringen"), role: .deny)], progress: "1 von 2")
         IslandModel.shared.setNeedsRecompute()
         DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in
             guard let self, self.permissionIsDemo else { return }
@@ -381,10 +381,10 @@ extension ClaudeService {
         permissionIsDemo = true
         permissionElements = []
         permission = PermissionPrompt(key: "demo", title: "Claude möchte „notch_status“ von notch-island verwenden",
-                                      detail: "Zeigt den Fortschritt einer Aufgabe in der Notch",
-                                      options: [.init(id: 0, label: "Ablehnen", role: .deny),
-                                                .init(id: 1, label: "Einmal erlauben", role: .allow),
-                                                .init(id: 2, label: "Immer erlauben", role: .always)])
+                                      detail: tr("Zeigt den Fortschritt einer Aufgabe in der Notch"),
+                                      options: [.init(id: 0, label: tr("Ablehnen"), role: .deny),
+                                                .init(id: 1, label: tr("Einmal erlauben"), role: .allow),
+                                                .init(id: 2, label: tr("Immer erlauben"), role: .always)])
         IslandModel.shared.setNeedsRecompute()
         DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in
             guard let self, self.permissionIsDemo else { return }
@@ -424,7 +424,7 @@ enum HookChannel {
         guard UUID(uuidString: id) != nil,
               let data = try? Data(contentsOf: dir.appendingPathComponent("req-\(id).json")),
               let d = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
-        return (String((d["title"] as? String ?? "Claude Code möchte etwas ausführen").prefix(140)),
+        return (String((d["title"] as? String ?? tr("Claude Code möchte etwas ausführen")).prefix(140)),
                 String((d["detail"] as? String ?? "").prefix(200)))
     }
 }
@@ -449,7 +449,7 @@ struct PermissionView: View {
                         .frame(width: 34, height: 34)
                         VStack(alignment: .leading, spacing: 2) {
                             HStack(spacing: 6) {
-                                Text(p.kind == .question ? "Claude fragt" : "Claude braucht deine Erlaubnis")
+                                Text(p.kind == .question ? tr("Claude fragt") : tr("Claude braucht deine Erlaubnis"))
                                     .font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.claude)
                                 if claude.queueCount > 1 {
                                     Text("\(claude.queueCount) offen").font(.system(size: 10, weight: .bold))
@@ -472,7 +472,7 @@ struct PermissionView: View {
                                 .foregroundStyle(Color.dim).frame(width: 24, height: 24)
                         }
                         .buttonStyle(PressableStyle())
-                        .help(p.kind == .question ? "In Claude antworten (eigene Antwort)" : "In Claude ansehen")
+                        .help(p.kind == .question ? tr("In Claude antworten (eigene Antwort)") : tr("In Claude ansehen"))
                     }
                     if p.kind == .question {
                         VStack(spacing: 5) {
@@ -511,7 +511,7 @@ struct PermissionView: View {
                             let actions = p.options.filter { $0.role != .other }
                             if !actions.isEmpty {
                                 HStack(spacing: 8) {
-                                    Text("Eigene Antwort: Pfeil oben rechts").font(.system(size: 10)).foregroundStyle(Color.white.opacity(0.35))
+                                    Text(tr("Eigene Antwort: Pfeil oben rechts")).font(.system(size: 10)).foregroundStyle(Color.white.opacity(0.35))
                                     Spacer(minLength: 0)
                                     ForEach(actions) { o in
                                         Button { claude.respond(o) } label: {

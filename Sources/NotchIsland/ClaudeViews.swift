@@ -44,7 +44,7 @@ struct ClaudeTaskCard: View {
                     }
                     VStack(alignment: .leading, spacing: 1) {
                         Text(task.title).font(.system(size: 15, weight: .semibold)).lineLimit(1)
-                        Text(task.state == .waiting ? "Wartet auf deine Antwort" : sourceText)
+                        Text(task.state == .waiting ? tr("Wartet auf deine Antwort") : sourceText)
                             .font(.system(size: 11.5, weight: .medium))
                             .foregroundStyle(task.state == .waiting ? Color.yellow : Color.claude)
                     }
@@ -66,12 +66,12 @@ struct ClaudeTaskCard: View {
                 }
                 TimelineView(.periodic(from: .now, by: 1)) { ctx in
                     HStack(spacing: 14) {
-                        stat("Dauer", formatDuration(ctx.date.timeIntervalSince(task.startedAt)))
-                        if let p = task.effectiveProgress { stat("Fortschritt", "\(Int((p * 100).rounded())) %") }
+                        stat(tr("Dauer"), formatDuration(ctx.date.timeIntervalSince(task.startedAt)))
+                        if let p = task.effectiveProgress { stat(tr("Fortschritt"), tr("\(Int((p * 100).rounded())) %")) }
                         if !task.steps.isEmpty, let c = task.currentStep {
-                            stat("Schritt", "\(min(c + 1, task.steps.count)) / \(task.steps.count)")
+                            stat(tr("Schritt"), "\(min(c + 1, task.steps.count)) / \(task.steps.count)")
                         }
-                        if let r = task.remaining(at: ctx.date) { stat("Noch ca.", formatDuration(r)) }
+                        if let r = task.remaining(at: ctx.date) { stat(tr("Noch ca."), formatDuration(r)) }
                         Spacer(minLength: 0)
                     }
                 }
@@ -89,9 +89,9 @@ struct ClaudeTaskCard: View {
 
     private var sourceText: String {
         switch task.source {
-        case .desktop: return "Schreibt eine Antwort …"
-        case .mcp: return "Arbeitet an deinem Auftrag …"
-        case .code: return "Claude Code arbeitet …"
+        case .desktop: return tr("Schreibt eine Antwort …")
+        case .mcp: return tr("Arbeitet an deinem Auftrag …")
+        case .code: return tr("Claude Code arbeitet …")
         }
     }
 }
@@ -102,13 +102,13 @@ struct ClaudeStepsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            SectionLabel(text: task.steps.isEmpty ? "Verlauf" : "Schritte")
+            SectionLabel(text: task.steps.isEmpty ? tr("Verlauf") : tr("Schritte"))
             ScrollViewReader { proxy in
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 5) {
                         if task.steps.isEmpty {
                             if task.log.isEmpty {
-                                Text("Sobald Claude Zwischenstände meldet, erscheinen sie hier.")
+                                Text(tr("Sobald Claude Zwischenstände meldet, erscheinen sie hier."))
                                     .font(.system(size: 11)).foregroundStyle(Color.white.opacity(0.4))
                             }
                             ForEach(task.log) { e in
@@ -182,7 +182,7 @@ struct ClaudeIdleCard: View {
                         VStack(alignment: .leading, spacing: 1) {
                             Text(last.title).font(.system(size: 14, weight: .semibold)).lineLimit(1)
                             TimelineView(.periodic(from: .now, by: 30)) { ctx in
-                                Text(ClaudeService.relative(last.finishedAt ?? last.startedAt, now: ctx.date) + " · Dauer " + formatDuration(last.elapsed))
+                                Text(ClaudeService.relative(last.finishedAt ?? last.startedAt, now: ctx.date) + tr(" · Dauer ") + formatDuration(last.elapsed))
                                     .font(.system(size: 11.5)).foregroundStyle(Color.dim)
                             }
                         }
@@ -191,18 +191,18 @@ struct ClaudeIdleCard: View {
                 } else {
                     HStack(spacing: 10) {
                         ClaudeGlyph(size: 22, spinning: false)
-                        Text("Claude ist bereit").font(.system(size: 14, weight: .semibold))
+                        Text(tr("Claude ist bereit")).font(.system(size: 14, weight: .semibold))
                     }
-                    Text("Gib Claude einen Auftrag – hier siehst du dann Schritte, Fortschritt und geschätzte Restzeit.")
+                    Text(tr("Gib Claude einen Auftrag – hier siehst du dann Schritte, Fortschritt und geschätzte Restzeit."))
                         .font(.system(size: 12)).foregroundStyle(Color.dim)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 0)
                 HStack(spacing: 8) {
-                    PillButton(title: "Claude öffnen", symbol: "arrow.up.forward.app", tint: Color.claude.opacity(0.9)) {
+                    PillButton(title: tr("Claude öffnen"), symbol: "arrow.up.forward.app", tint: Color.claude.opacity(0.9)) {
                         AppInfo.activate(Const.claudeBundle)
                     }
-                    PillButton(title: "Vorschau", symbol: "play.fill") { claude.demo() }
+                    PillButton(title: tr("Vorschau"), symbol: "play.fill") { claude.demo() }
                 }
             }
             .frame(maxHeight: .infinity, alignment: .topLeading)
@@ -215,9 +215,9 @@ struct ClaudeHistoryView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            SectionLabel(text: "Erledigt")
+            SectionLabel(text: tr("Erledigt"))
             if claude.history.isEmpty {
-                Text("Noch keine Aufgaben").font(.system(size: 11.5)).foregroundStyle(Color.white.opacity(0.4))
+                Text(tr("Noch keine Aufgaben")).font(.system(size: 11.5)).foregroundStyle(Color.white.opacity(0.4))
             }
             ForEach(claude.history.prefix(4)) { t in
                 HStack(spacing: 7) {
@@ -241,7 +241,7 @@ struct ClaudeFooter: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: "star.fill").font(.system(size: 10)).foregroundStyle(Color.claude)
-            Text("Claude als Haupt-Tab").font(.system(size: 11, weight: .semibold))
+            Text(tr("Claude als Haupt-Tab")).font(.system(size: 11, weight: .semibold))
             HStack(spacing: 2) {
                 ForEach(ClaudePrimaryMode.allCases) { m in
                     let sel = claude.primaryMode == m
@@ -265,7 +265,7 @@ struct ClaudeFooter: View {
                         .foregroundStyle(Color.claude)
                 }
                 .buttonStyle(.plain)
-                .help("Bedienungshilfen erlauben, damit die Notch erkennt, wann Claude antwortet.")
+                .help(tr("Bedienungshilfen erlauben, damit die Notch erkennt, wann Claude antwortet."))
             }
         }
     }

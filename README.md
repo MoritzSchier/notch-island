@@ -1,6 +1,6 @@
 # Notch Island
 
-**Die Dynamic Island für den Mac.** Notch Island macht die MacBook-Notch (oder die Mitte der Menüleiste bei Macs ohne Notch) zu einer lebendigen Insel – mit Live-Aktivitäten, Mitteilungen, einer Dropzone für Dateien und direkter Claude-Anbindung.
+**Die Dynamic Island für den Mac** – auf Deutsch und Englisch. Notch Island macht die MacBook-Notch (oder die Mitte der Menüleiste bei Macs ohne Notch) zu einer lebendigen Insel – mit Live-Aktivitäten, Mitteilungen, einer Dropzone für Dateien und direkter Claude-Anbindung.
 
 [English below](#english)
 
@@ -22,7 +22,7 @@
 | 🔋 **System** | Akku (Watt, Zeit bis 80 %, Zustand, Zyklen), Bluetooth/AirPods, Downloads, Kamera/Mikrofon-Anzeige |
 | 🌐 **Websites, Spiegel, Zwischenablage-Verlauf, Notiz** | |
 
-Auf Macs oder Monitoren ohne Notch kann auf Wunsch dauerhaft eine schwarze Notch angezeigt werden (Einstellungen › Allgemein, standardmäßig aus). Tabs lassen sich per Drag & Drop sortieren und in den Einstellungen › Tabs ein- und ausblenden; dort hat jeder Tab aufklappbare Optionen (z. B. Start-Karten, Alarm-Ton und Timer-Schnellwahl, Farbformate, Nutzungsanzeige). Mitteilungen lassen sich pro App stummschalten, mit oder ohne Textvorschau. Ein **Einrichtungsassistent** führt beim ersten Start durch alle Freigaben, und **Updates** werden automatisch angeboten (ein Klick lädt die neue Version von GitHub und startet neu). Die Insel klappt automatisch zu, sobald die Maus weg ist.
+Auf Macs oder Monitoren ohne Notch kann auf Wunsch dauerhaft eine schwarze Notch angezeigt werden (Einstellungen › Allgemein, standardmäßig aus). Die Sprache (Deutsch/English) wählst du im Einrichtungsassistenten oder unter Einstellungen › Allgemein. Tabs lassen sich per Drag & Drop sortieren und in den Einstellungen › Tabs ein- und ausblenden; dort hat jeder Tab aufklappbare Optionen (z. B. Start-Karten, Alarm-Ton und Timer-Schnellwahl, Farbformate, Nutzungsanzeige). Mitteilungen lassen sich pro App stummschalten, mit oder ohne Textvorschau. Ein **Einrichtungsassistent** führt beim ersten Start durch alle Freigaben, und **Updates** werden automatisch angeboten (ein Klick lädt die neue Version von GitHub und startet neu). Die Insel klappt automatisch zu, sobald die Maus weg ist.
 
 > Konvertieren von Office-Dateien nutzt das, was installiert ist: Word/PowerPoint oder Pages/Keynote/Numbers. MP3 braucht zusätzlich `lame` (`brew install lame`). Alles andere funktioniert ohne Zusatzprogramme.
 
@@ -118,7 +118,7 @@ MIT – siehe [LICENSE](LICENSE). Nicht mit Apple oder Anthropic verbunden.
 
 **Notch Island turns your Mac's notch into a Dynamic Island** – live activities, notifications, a file dropzone and Claude integration. On Macs without a notch it sits at the top center of the menu bar.
 
-**Features:** media (Spotify, Music, YouTube in Chrome), calls (WhatsApp, Discord, FaceTime, Zoom, Teams …), notifications with sender and text, Claude progress + answering Claude's permission requests and multiple-choice questions right from the island, usage limits, timers, dropzone with conversion (PDF, DOCX, JPEG, PNG, HEIC, MP4, MOV, MP3 …) and compression, next event & reminders, color picker, audio device switching, battery details, Bluetooth, downloads, mirror, clipboard history, quick note. The UI is in German.
+**Features:** media (Spotify, Music, YouTube in Chrome), calls (WhatsApp, Discord, FaceTime, Zoom, Teams …), notifications with sender and text, Claude progress + answering Claude's permission requests and multiple-choice questions right from the island, usage limits, timers, dropzone with conversion (PDF, DOCX, JPEG, PNG, HEIC, MP4, MOV, MP3 …) and compression, next event & reminders, color picker, audio device switching, battery details, Bluetooth, downloads, mirror, clipboard history, quick note. The app is available in **English and German** – pick the language in the setup assistant or in Settings › General.
 
 **Requirements:** macOS 14 Sonoma or later, any Mac (Apple Silicon or Intel, with or without notch, external displays supported). To build: Xcode Command Line Tools (`xcode-select --install`).
 

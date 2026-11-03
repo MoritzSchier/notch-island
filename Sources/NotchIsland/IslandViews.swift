@@ -6,6 +6,7 @@ struct IslandRootView: View {
     @ObservedObject var claude = ClaudeService.shared
     @ObservedObject var web = WebFavorites.shared
     @AppStorage(Prefs.simulateNotch) private var simulateNotch = false
+    @AppStorage(Loc.key) private var language = "system"
 
     var body: some View {
         let p = model.presentation
@@ -17,6 +18,7 @@ struct IslandRootView: View {
                 NotchShape(topRadius: r.top, bottomRadius: r.bottom)
                     .fill(Color.black)
                 IslandContent(presentation: p)
+                    .id(language)   // Sprache gewechselt → alles neu zeichnen
                     .padding(.horizontal, r.top)
                     .frame(width: w, height: s.height, alignment: .top)
                     .clipShape(NotchShape(topRadius: r.top, bottomRadius: r.bottom))
@@ -300,7 +302,7 @@ struct MessageToastView: View {
 
     static func ago(_ d: Date, now: Date) -> String {
         let s = Int(now.timeIntervalSince(d))
-        return s < 60 ? "jetzt" : "vor \(s / 60) Min"
+        return s < 60 ? "jetzt" : tr("vor \(s / 60) Min")
     }
 }
 
@@ -316,8 +318,8 @@ struct RingingView: View {
             HStack(spacing: 12) {
                 AppIconView(bundleID: calls.ringing?.bundleID, size: 36)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(AppInfo.humanize(calls.ringing?.name ?? "Anruf")).font(.system(size: 14, weight: .semibold))
-                    Text("Eingehender Anruf").font(.system(size: 12)).foregroundStyle(Color.dim)
+                    Text(AppInfo.humanize(calls.ringing?.name ?? tr("Anruf"))).font(.system(size: 14, weight: .semibold))
+                    Text(tr("Eingehender Anruf")).font(.system(size: 12)).foregroundStyle(Color.dim)
                 }
                 Spacer(minLength: 8)
                 CircleButton(symbol: "xmark", tint: .red, size: 38) { calls.dismissRinging() }
@@ -398,7 +400,7 @@ struct ToastView: View {
             Text(s).font(.system(size: 13, weight: .semibold).monospacedDigit()).foregroundStyle(toast.tint)
         case .battery(let level, let charging):
             HStack(spacing: 6) {
-                Text("\(Int((level * 100).rounded())) %")
+                Text(tr("\(Int((level * 100).rounded())) %"))
                     .font(.system(size: 13, weight: .semibold).monospacedDigit())
                     .foregroundStyle(charging ? .green : (level <= 0.2 ? .red : .white))
                 BatteryIcon(level: level, charging: charging, width: 28)

@@ -45,7 +45,7 @@ final class TimerService: ObservableObject {
     static func defaultLabel(_ s: TimeInterval) -> String {
         let m = Int(s / 60)
         if m >= 60 && m % 60 == 0 { return "\(m / 60)-Std-Timer" }
-        return m > 0 ? "\(m)-Min-Timer" : "\(Int(s))-Sek-Timer"
+        return m > 0 ? "\(m)-Min-Timer" : tr("\(Int(s))-Sek-Timer")
     }
 
     func togglePause(_ id: UUID) {
@@ -93,13 +93,13 @@ final class TimerService: ObservableObject {
         startAlarm()
         let label = t.label
         IslandModel.shared.show(Toast(
-            symbol: "timer", tint: .orange, title: "Timer abgelaufen", subtitle: label,
+            symbol: "timer", tint: .orange, title: tr("Timer abgelaufen"), subtitle: label,
             buttons: [
-                ToastButton(title: "+1 Min", tint: Color.white.opacity(0.18)) { [weak self] in
+                ToastButton(title: tr("+1 Min"), tint: Color.white.opacity(0.18)) { [weak self] in
                     self?.stopAlarm()
                     self?.start(seconds: 60, label: label)
                 },
-                ToastButton(title: "Stopp", tint: .orange) { [weak self] in self?.stopAlarm() },
+                ToastButton(title: tr("Stopp"), tint: .orange) { [weak self] in self?.stopAlarm() },
             ],
             duration: 30,
             onTap: { [weak self] in self?.stopAlarm() },

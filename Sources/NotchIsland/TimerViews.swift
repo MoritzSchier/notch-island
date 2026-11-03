@@ -11,10 +11,10 @@ struct TimerTabView: View {
         HStack(alignment: .top, spacing: 14) {
             VStack(alignment: .leading, spacing: 9) {
                 if ts.timers.isEmpty {
-                    SectionLabel(text: "Timer")
+                    SectionLabel(text: tr("Timer"))
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 7), count: 4), spacing: 7) {
                         ForEach(presets, id: \.self) { m in
-                            PresetButton(title: m == 60 ? "1 Std" : "\(m) Min") { ts.start(seconds: Double(m) * 60) }
+                            PresetButton(title: m == 60 ? tr("1 Std") : tr("\(m) Min")) { ts.start(seconds: Double(m) * 60) }
                         }
                     }
                     customRow
@@ -27,7 +27,7 @@ struct TimerTabView: View {
                     .frame(maxHeight: 108)
                     HStack(spacing: 6) {
                         ForEach([1, 5, 10, 25], id: \.self) { m in
-                            PresetButton(title: "+ \(m) Min", compact: true) { ts.start(seconds: Double(m) * 60) }
+                            PresetButton(title: tr("+ \(m) Min"), compact: true) { ts.start(seconds: Double(m) * 60) }
                         }
                     }
                 }
@@ -40,12 +40,12 @@ struct TimerTabView: View {
     private var customRow: some View {
         HStack(spacing: 8) {
             CircleButton(symbol: "minus", size: 26) { customMinutes = max(1, customMinutes - (customMinutes > 10 ? 5 : 1)) }
-            Text("\(customMinutes) Min")
+            Text(tr("\(customMinutes) Min"))
                 .font(.system(size: 15, weight: .semibold, design: .rounded).monospacedDigit())
                 .frame(width: 66)
             CircleButton(symbol: "plus", size: 26) { customMinutes = min(600, customMinutes + (customMinutes >= 10 ? 5 : 1)) }
             Spacer(minLength: 0)
-            PillButton(title: "Starten", symbol: "play.fill", tint: .orange, fg: .black) {
+            PillButton(title: tr("Starten"), symbol: "play.fill", tint: .orange, fg: .black) {
                 ts.start(seconds: Double(customMinutes) * 60)
             }
         }
@@ -98,7 +98,7 @@ struct TimerRow: View {
             }
             Spacer(minLength: 0)
             CircleButton(symbol: "plus", tint: Color.white.opacity(0.12), size: 32) { ts.addMinute(timer.id) }
-                .help("+1 Minute")
+                .help(tr("+1 Minute"))
             CircleButton(symbol: timer.isPaused ? "play.fill" : "pause.fill", tint: Color.orange.opacity(0.25), fg: .orange, size: 32) {
                 ts.togglePause(timer.id)
             }
@@ -113,7 +113,7 @@ struct StopwatchCard: View {
     var body: some View {
         Card(padding: 12) {
             VStack(alignment: .leading, spacing: 8) {
-                SectionLabel(text: "Stoppuhr")
+                SectionLabel(text: tr("Stoppuhr"))
                 TimelineView(.animation(minimumInterval: 0.05, paused: !ts.swRunning)) { ctx in
                     Text(formatStopwatch(ts.swElapsed(at: ctx.date)))
                         .font(.system(size: 30, weight: .medium, design: .rounded).monospacedDigit())
@@ -121,7 +121,7 @@ struct StopwatchCard: View {
                 }
                 HStack {
                     Button { ts.swLapOrReset() } label: {
-                        Text(ts.swRunning ? "Runde" : "Zurücksetzen")
+                        Text(ts.swRunning ? tr("Runde") : tr("Zurücksetzen"))
                             .font(.system(size: 11, weight: .semibold))
                             .frame(width: 82, height: 30)
                             .background(Capsule().fill(Color.white.opacity(0.14)))
@@ -130,7 +130,7 @@ struct StopwatchCard: View {
                     .disabled(!ts.swRunning && ts.swAccum == 0)
                     Spacer(minLength: 0)
                     Button { ts.swToggle() } label: {
-                        Text(ts.swRunning ? "Stopp" : "Start")
+                        Text(ts.swRunning ? tr("Stopp") : tr("Start"))
                             .font(.system(size: 11.5, weight: .semibold))
                             .foregroundStyle(ts.swRunning ? Color.red : Color.green)
                             .frame(width: 82, height: 30)
@@ -140,7 +140,7 @@ struct StopwatchCard: View {
                 }
                 if let last = ts.laps.first {
                     HStack {
-                        Text("Runde \(ts.laps.count)")
+                        Text(tr("Runde \(ts.laps.count)"))
                         Spacer()
                         Text(formatStopwatch(last)).monospacedDigit()
                     }

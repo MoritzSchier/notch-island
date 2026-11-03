@@ -28,10 +28,10 @@ final class WebFavorites: ObservableObject {
             items = list
         } else {
             items = [
-                WebFavorite(title: "Claude", url: "https://claude.ai"),
+                WebFavorite(title: tr("Claude"), url: "https://claude.ai"),
                 WebFavorite(title: "YouTube", url: "https://www.youtube.com"),
                 WebFavorite(title: "ChatGPT", url: "https://chatgpt.com"),
-                WebFavorite(title: "Google", url: "https://www.google.com"),
+                WebFavorite(title: tr("Google"), url: "https://www.google.com"),
             ]
         }
         items.forEach(loadIcon)
@@ -100,12 +100,12 @@ final class WebFavorites: ObservableObject {
                 DispatchQueue.main.async {
                     let short = title.map { MediaController.cleanTitle($0).components(separatedBy: " - ").first ?? $0 }
                     if self.add(url, title: short) {
-                        IslandModel.shared.show(Toast(symbol: "globe", tint: .blue, title: "Website hinzugefügt", subtitle: short ?? url, duration: 2))
+                        IslandModel.shared.show(Toast(symbol: "globe", tint: .blue, title: tr("Website hinzugefügt"), subtitle: short ?? url, duration: 2))
                     }
                 }
                 return
             }
-            showToast(Toast(symbol: "globe", tint: .orange, title: "Kein Browser-Tab gefunden", subtitle: "Chrome oder Safari öffnen", duration: 2.5))
+            showToast(Toast(symbol: "globe", tint: .orange, title: tr("Kein Browser-Tab gefunden"), subtitle: tr("Chrome oder Safari öffnen"), duration: 2.5))
         }
     }
 
@@ -168,7 +168,7 @@ final class RemindersService: ObservableObject {
         store.fetchReminders(matching: pred) { [weak self] rems in
             let list: [Due] = (rems ?? []).compactMap { r in
                 guard let comps = r.dueDateComponents, let due = Calendar.current.date(from: comps) else { return nil }
-                return Due(id: r.calendarItemIdentifier, title: r.title ?? "Erinnerung", due: due,
+                return Due(id: r.calendarItemIdentifier, title: r.title ?? tr("Erinnerung"), due: due,
                            list: r.calendar?.title, color: Color(nsColor: r.calendar?.color ?? .systemBlue),
                            flagged: r.priority > 0 && r.priority <= 4)
             }.sorted { $0.due < $1.due }
@@ -179,13 +179,13 @@ final class RemindersService: ObservableObject {
 
     static func relative(_ d: Date, now: Date = Date()) -> String {
         let s = d.timeIntervalSince(now)
-        if s < 0 { return "überfällig" }
+        if s < 0 { return tr("überfällig") }
         let h = Int(s / 3600)
-        if h < 1 { return "in \(max(1, Int(s / 60))) Min" }
-        if h < 24 { return "in \(h) Std" }
+        if h < 1 { return tr("in \(max(1, Int(s / 60))) Min") }
+        if h < 24 { return tr("in \(h) Std") }
         let days = Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: now),
                                                    to: Calendar.current.startOfDay(for: d)).day ?? 0
-        return days == 1 ? "morgen" : "in \(days) Tagen"
+        return days == 1 ? "morgen" : tr("in \(days) Tagen")
     }
 }
 

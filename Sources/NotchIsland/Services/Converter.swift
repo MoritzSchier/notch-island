@@ -118,7 +118,7 @@ enum Converter {
 
     static func convert(_ urls: [URL], to target: ConvertTarget) {
         guard !urls.isEmpty else { return }
-        showToast(Toast(symbol: "arrow.triangle.2.circlepath", tint: target.tint, title: "Konvertiere nach \(target.title) …",
+        showToast(Toast(symbol: "arrow.triangle.2.circlepath", tint: target.tint, title: tr("Konvertiere nach \(target.title) …"),
                         subtitle: urls.count == 1 ? urls[0].lastPathComponent : "\(urls.count) Dateien", duration: 2))
         DispatchQueue.global(qos: .userInitiated).async {
             var outputs: [URL] = []
@@ -139,12 +139,12 @@ enum Converter {
             DevBridge.log("Konvertiert → \(target.title): \(outputs.map(\.lastPathComponent)) Fehler: \(errors)")
             DispatchQueue.main.async {
                 if outputs.isEmpty {
-                    IslandModel.shared.show(Toast(symbol: "exclamationmark.triangle.fill", tint: .orange, title: "Konvertieren fehlgeschlagen",
+                    IslandModel.shared.show(Toast(symbol: "exclamationmark.triangle.fill", tint: .orange, title: tr("Konvertieren fehlgeschlagen"),
                                                   subtitle: errors.first, duration: 5))
                     return
                 }
                 ShelfStore.shared.present(outputs, title: outputs[0].lastPathComponent,
-                                          subtitle: (outputs.count == 1 ? "Als \(target.title) gespeichert" : "\(outputs.count) Dateien als \(target.title)") + " · zum Ablegen ziehen",
+                                          subtitle: (outputs.count == 1 ? tr("Als \(target.title) gespeichert") : "\(outputs.count) Dateien als \(target.title)") + tr(" · zum Ablegen ziehen"),
                                           tint: target.tint)
             }
         }
@@ -163,7 +163,7 @@ enum Converter {
 
         switch (kind, target) {
         case (.image, .pdf):
-            guard imagesToPDF([u], out: out) else { throw ConvertError(message: "Bild konnte nicht gelesen werden") }
+            guard imagesToPDF([u], out: out) else { throw ConvertError(message: tr("Bild konnte nicht gelesen werden")) }
             return [out]
         case (.image, .docx):
             try imagesToDOCX([u], out: out)
@@ -171,7 +171,7 @@ enum Converter {
         case (.word, .jpeg), (.word, .png), (.presentation, .jpeg), (.presentation, .png),
              (.spreadsheet, .jpeg), (.spreadsheet, .png), (.text, .jpeg), (.text, .png):
             // Erst originalgetreu als PDF, dann jede Seite als Bild (300 dpi)
-            guard let pdf = try convert(u, to: .pdf).first else { throw ConvertError(message: "PDF-Zwischenschritt fehlgeschlagen") }
+            guard let pdf = try convert(u, to: .pdf).first else { throw ConvertError(message: tr("PDF-Zwischenschritt fehlgeschlagen")) }
             defer { try? FileManager.default.removeItem(at: pdf) }
             return try pdfToImages(pdf, target: target, dir: dir, base: base)
         case (.video, _), (.audio, _):
@@ -183,7 +183,7 @@ enum Converter {
         case (.pdf, .jpeg), (.pdf, .png):
             return try pdfToImages(u, target: target, dir: dir, base: base)
         case (.pdf, .txt):
-            guard let s = PDFDocument(url: u)?.string else { throw ConvertError(message: "Kein Text im PDF") }
+            guard let s = PDFDocument(url: u)?.string else { throw ConvertError(message: tr("Kein Text im PDF")) }
             try s.write(to: out, atomically: true, encoding: .utf8)
             return [out]
         case (.pdf, .docx):
@@ -216,7 +216,7 @@ enum Converter {
 
         case (.presentation, .pdf):
             if u.pathExtension.lowercased() == "key" || !installed(pptID) {
-                guard installed(keynoteID) else { throw ConvertError(message: "PowerPoint oder Keynote wird benötigt") }
+                guard installed(keynoteID) else { throw ConvertError(message: tr("PowerPoint oder Keynote wird benötigt")) }
                 try iwork(keynoteID, open: u, export: out, as: "PDF")
                 return [out]
             }
@@ -225,7 +225,7 @@ enum Converter {
 
         case (.spreadsheet, .pdf):
             if installed(numbersID) { try iwork(numbersID, open: u, export: out, as: "PDF"); return [out] }
-            throw ConvertError(message: "Numbers wird benötigt")
+            throw ConvertError(message: tr("Numbers wird benötigt"))
         case (.spreadsheet, .xlsx):
             try iwork(numbersID, open: u, export: out, as: "Microsoft Excel")
             return [out]
@@ -234,7 +234,7 @@ enum Converter {
             return [out]
 
         default:
-            throw ConvertError(message: "\(u.pathExtension.uppercased()) → \(target.title) wird nicht unterstützt")
+            throw ConvertError(message: tr("\(u.pathExtension.uppercased()) → \(target.title) wird nicht unterstützt"))
         }
     }
 
@@ -253,12 +253,12 @@ enum Converter {
     static func convertImage(_ u: URL, to t: ConvertTarget, out: URL) throws {
         guard let src = CGImageSourceCreateWithURL(u as CFURL, nil),
               let dst = CGImageDestinationCreateWithURL(out as CFURL, imageUTType(t), 1, nil) else {
-            throw ConvertError(message: "Bild konnte nicht gelesen werden")
+            throw ConvertError(message: tr("Bild konnte nicht gelesen werden"))
         }
         var props: [CFString: Any] = [:]
         if t == .jpeg || t == .heic { props[kCGImageDestinationLossyCompressionQuality] = 0.95 }
         CGImageDestinationAddImageFromSource(dst, src, 0, props as CFDictionary)
-        guard CGImageDestinationFinalize(dst) else { throw ConvertError(message: "Speichern fehlgeschlagen") }
+        guard CGImageDestinationFinalize(dst) else { throw ConvertError(message: tr("Speichern fehlgeschlagen")) }
         copyDates(from: u, to: out)
     }
 
@@ -295,7 +295,7 @@ enum Converter {
 
     /// Jede PDF-Seite als Bild in 300 dpi.
     static func pdfToImages(_ u: URL, target: ConvertTarget, dir: URL, base: String) throws -> [URL] {
-        guard let doc = CGPDFDocument(u as CFURL), doc.numberOfPages > 0 else { throw ConvertError(message: "PDF konnte nicht gelesen werden") }
+        guard let doc = CGPDFDocument(u as CFURL), doc.numberOfPages > 0 else { throw ConvertError(message: tr("PDF konnte nicht gelesen werden")) }
         let n = doc.numberOfPages
         var folder = dir
         if n > 1 {
@@ -326,7 +326,7 @@ enum Converter {
             CGImageDestinationAddImage(dst, img, props as CFDictionary)
             if CGImageDestinationFinalize(dst) { outs.append(out) }
         }
-        guard !outs.isEmpty else { throw ConvertError(message: "Keine Seite konnte gerendert werden") }
+        guard !outs.isEmpty else { throw ConvertError(message: tr("Keine Seite konnte gerendert werden")) }
         return n > 1 ? [folder] : outs
     }
 
@@ -376,7 +376,7 @@ enum Converter {
             """
             rels += "<Relationship Id=\"rIdImg\(n)\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"media/\(media)\"/>"
         }
-        guard n > 0 else { throw ConvertError(message: "Keine lesbaren Bilder") }
+        guard n > 0 else { throw ConvertError(message: tr("Keine lesbaren Bilder")) }
         let files: [String: String] = [
             "[Content_Types].xml": """
             <?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="jpg" ContentType="image/jpeg"/><Default Extension="png" ContentType="image/png"/><Default Extension="gif" ContentType="image/gif"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>
@@ -404,7 +404,7 @@ enum Converter {
         }
         try zip(["-X", "-q", out.path, "[Content_Types].xml"])
         try zip(["-X", "-q", "-r", out.path, ".", "-x", "[Content_Types].xml"])
-        guard fm.fileExists(atPath: out.path) else { throw ConvertError(message: "Word-Datei konnte nicht erstellt werden") }
+        guard fm.fileExists(atPath: out.path) else { throw ConvertError(message: tr("Word-Datei konnte nicht erstellt werden")) }
     }
 
     // MARK: Audio & Video
@@ -432,7 +432,7 @@ enum Converter {
             try afconvert(input, out: out, args: t == .wav ? ["-f", "WAVE", "-d", "LEI16"] : ["-f", "AIFF", "-d", "BEI16"])
         case .mp3:
             guard let lame else {
-                throw ConvertError(message: "Für MP3 wird „lame“ benötigt (Terminal: brew install lame)")
+                throw ConvertError(message: tr("Für MP3 wird „lame“ benötigt (Terminal: brew install lame)"))
             }
             // Erst verlustfrei nach WAV, dann MP3 in hoher Qualität (VBR ~190–250 kbit/s)
             let wav = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".wav")
@@ -442,9 +442,9 @@ enum Converter {
             p.executableURL = URL(fileURLWithPath: lame)
             p.arguments = ["-V", "0", "--quiet", wav.path, out.path]
             try p.run(); p.waitUntilExit()
-            guard p.terminationStatus == 0 else { throw ConvertError(message: "MP3-Kodierung fehlgeschlagen") }
+            guard p.terminationStatus == 0 else { throw ConvertError(message: tr("MP3-Kodierung fehlgeschlagen")) }
         default:
-            throw ConvertError(message: "Nicht unterstützt")
+            throw ConvertError(message: tr("Nicht unterstützt"))
         }
         copyDates(from: u, to: out)
     }
@@ -454,7 +454,7 @@ enum Converter {
         let asset = AVURLAsset(url: u)
         let presets: [String] = audioOnly ? [AVAssetExportPresetAppleM4A]
             : [AVAssetExportPresetPassthrough, AVAssetExportPresetHEVCHighestQuality, AVAssetExportPresetHighestQuality]
-        var lastError = "Export nicht möglich"
+        var lastError = tr("Export nicht möglich")
         for preset in presets {
             guard let session = AVAssetExportSession(asset: asset, presetName: preset),
                   session.supportedFileTypes.contains(fileType) else { continue }
@@ -477,7 +477,7 @@ enum Converter {
         p.arguments = args + [u.path, out.path]
         p.standardError = FileHandle.nullDevice
         try p.run(); p.waitUntilExit()
-        guard p.terminationStatus == 0 else { throw ConvertError(message: "Audio konnte nicht umgewandelt werden") }
+        guard p.terminationStatus == 0 else { throw ConvertError(message: tr("Audio konnte nicht umgewandelt werden")) }
     }
 
     // MARK: Office & iWork (per AppleScript – originalgetreue Darstellung)
@@ -530,12 +530,12 @@ enum Converter {
         let key = "officeHint-" + app
         guard !UserDefaults.standard.bool(forKey: key) else { return }
         UserDefaults.standard.set(true, forKey: key)
-        showToast(Toast(symbol: "folder.badge.questionmark", tint: .orange, title: "\(app) fragt evtl. nach Ordnerzugriff",
-                        subtitle: "„Auswählen…“ → am besten deinen Benutzerordner wählen", duration: 9))
+        showToast(Toast(symbol: "folder.badge.questionmark", tint: .orange, title: tr("\(app) fragt evtl. nach Ordnerzugriff"),
+                        subtitle: tr("„Auswählen…“ → am besten deinen Benutzerordner wählen"), duration: 9))
     }
 
     static func word(open u: URL, save out: URL, format: String) throws {
-        officeHint("Word")
+        officeHint(tr("Word"))
         let tmp = out
         let src = """
         with timeout of 300 seconds
@@ -553,7 +553,7 @@ enum Converter {
         end timeout
         """
         try runScript(src)
-        guard waitForFile(tmp) else { throw ConvertError(message: "Word hat keine Datei gespeichert") }
+        guard waitForFile(tmp) else { throw ConvertError(message: tr("Word hat keine Datei gespeichert")) }
         copyDates(from: u, to: out)
     }
 
@@ -573,7 +573,7 @@ enum Converter {
         end timeout
         """
         try runScript(src)
-        guard waitForFile(tmp) else { throw ConvertError(message: "PowerPoint hat keine Datei gespeichert") }
+        guard waitForFile(tmp) else { throw ConvertError(message: tr("PowerPoint hat keine Datei gespeichert")) }
         copyDates(from: u, to: out)
     }
 
@@ -588,7 +588,7 @@ enum Converter {
         end timeout
         """
         try runScript(src)
-        guard waitForFile(out) else { throw ConvertError(message: "Export fehlgeschlagen") }
+        guard waitForFile(out) else { throw ConvertError(message: tr("Export fehlgeschlagen")) }
         copyDates(from: u, to: out)
     }
 
@@ -600,7 +600,7 @@ enum Converter {
         p.arguments = ["-convert", format, "-output", out.path, u.path]
         try p.run()
         p.waitUntilExit()
-        guard p.terminationStatus == 0 else { throw ConvertError(message: "textutil konnte die Datei nicht umwandeln") }
+        guard p.terminationStatus == 0 else { throw ConvertError(message: tr("textutil konnte die Datei nicht umwandeln")) }
         copyDates(from: u, to: out)
     }
 
@@ -624,7 +624,7 @@ enum Converter {
                 let op = NSPrintOperation(view: tv, printInfo: info)
                 op.showsPrintPanel = false
                 op.showsProgressPanel = false
-                if !op.run() { result = ConvertError(message: "PDF konnte nicht erstellt werden") }
+                if !op.run() { result = ConvertError(message: tr("PDF konnte nicht erstellt werden")) }
             } catch { result = error }
         }
         if let result { throw result }
@@ -652,7 +652,7 @@ enum Compressor {
 
     static func compress(_ urls: [URL]) {
         guard !urls.isEmpty else { return }
-        showToast(Toast(symbol: "arrow.down.right.and.arrow.up.left", tint: .pink, title: "Verkleinere …",
+        showToast(Toast(symbol: "arrow.down.right.and.arrow.up.left", tint: .pink, title: tr("Verkleinere …"),
                         subtitle: urls.count == 1 ? urls[0].lastPathComponent : "\(urls.count) Dateien", duration: 2))
         DispatchQueue.global(qos: .userInitiated).async {
             var results: [Result] = []
@@ -669,14 +669,14 @@ enum Compressor {
             DispatchQueue.main.async {
                 guard !results.isEmpty else {
                     IslandModel.shared.show(Toast(symbol: "checkmark.seal.fill", tint: .orange,
-                                                  title: failed.isEmpty ? "Bereits optimal komprimiert" : "Verkleinern fehlgeschlagen",
+                                                  title: failed.isEmpty ? tr("Bereits optimal komprimiert") : tr("Verkleinern fehlgeschlagen"),
                                                   subtitle: failed.first ?? notSmaller.first, duration: 4))
                     return
                 }
                 let before = results.reduce(0) { $0 + $1.before }, after = results.reduce(0) { $0 + $1.after }
                 let pct = before > 0 ? Int((1 - Double(after) / Double(before)) * 100) : 0
                 ShelfStore.shared.present(results.map(\.url), title: results[0].url.lastPathComponent,
-                                          subtitle: "−\(pct) % · \(formatBytes(before)) → \(formatBytes(after)) · zum Ablegen ziehen",
+                                          subtitle: tr("−\(pct) % · \(formatBytes(before)) → \(formatBytes(after)) · zum Ablegen ziehen"),
                                           tint: .pink)
             }
         }
@@ -692,7 +692,7 @@ enum Compressor {
         case .image:
             try compressImage(u, out: out, maxPixel: 3000)
         case .pdf:
-            guard let doc = PDFDocument(url: u) else { throw Converter.ConvertError(message: "PDF nicht lesbar") }
+            guard let doc = PDFDocument(url: u) else { throw Converter.ConvertError(message: tr("PDF nicht lesbar")) }
             // Alle Seiten, Text und Vektoren bleiben – nur eingebettete Bilder werden optimiert
             // Stufenweise: erst 200 dpi / hohe Qualität, falls das kaum etwas bringt 150 dpi.
             // Text, Vektoren, Links und alle Seiten bleiben unverändert – nur eingebettete Bilder werden neu gerechnet.
@@ -702,10 +702,10 @@ enum Compressor {
                 ok = doc.write(to: out, withOptions: [PDFDocumentWriteOption(rawValue: "QuartzFilter"): filter])
                 if ok, size(out) < before * 85 / 100 { break }
             }
-            guard ok else { throw Converter.ConvertError(message: "PDF konnte nicht gespeichert werden") }
+            guard ok else { throw Converter.ConvertError(message: tr("PDF konnte nicht gespeichert werden")) }
             if PDFDocument(url: out)?.pageCount != doc.pageCount {
                 try? FileManager.default.removeItem(at: out)
-                throw Converter.ConvertError(message: "Seitenzahl stimmte nicht – Original behalten")
+                throw Converter.ConvertError(message: tr("Seitenzahl stimmte nicht – Original behalten"))
             }
         case .word, .presentation, .spreadsheet:
             guard ["docx", "pptx", "xlsx", "docm", "pptm", "xlsm"].contains(ext.lowercased()) else { return try zipFallback(u, dir: dir, before: before) }
@@ -727,7 +727,7 @@ enum Compressor {
         let dict: [String: Any] = [
             "Domains": ["Applications": true, "Printing": true],
             "FilterType": 1,
-            "Name": "Notch Island \(dpi) dpi",
+            "Name": tr("Notch Island \(dpi) dpi"),
             "FilterData": [
                 "ColorSettings": [
                     "ImageSettings": [
@@ -767,14 +767,14 @@ enum Compressor {
     static func compressImage(_ u: URL, out: URL, maxPixel: Int) throws {
         guard let src = CGImageSourceCreateWithURL(u as CFURL, nil), let type = CGImageSourceGetType(src),
               let dst = CGImageDestinationCreateWithURL(out as CFURL, type, 1, nil) else {
-            throw Converter.ConvertError(message: "Bildformat wird nicht unterstützt")
+            throw Converter.ConvertError(message: tr("Bildformat wird nicht unterstützt"))
         }
         let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any] ?? [:]
         let w = props[kCGImagePropertyPixelWidth] as? Int ?? 0, h = props[kCGImagePropertyPixelHeight] as? Int ?? 0
         var opts: [CFString: Any] = [kCGImageDestinationLossyCompressionQuality: 0.82]
         if max(w, h) > maxPixel { opts[kCGImageDestinationImageMaxPixelSize] = maxPixel }
         CGImageDestinationAddImageFromSource(dst, src, 0, opts as CFDictionary)
-        guard CGImageDestinationFinalize(dst) else { throw Converter.ConvertError(message: "Speichern fehlgeschlagen") }
+        guard CGImageDestinationFinalize(dst) else { throw Converter.ConvertError(message: tr("Speichern fehlgeschlagen")) }
     }
 
     /// Word/PowerPoint/Excel: eingebettete Bilder optimieren, alles andere (Text, Seiten, Folien) bleibt unverändert.
@@ -787,7 +787,7 @@ enum Compressor {
         unzip.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
         unzip.arguments = ["-x", "-k", u.path, tmp.path]
         try unzip.run(); unzip.waitUntilExit()
-        guard unzip.terminationStatus == 0 else { throw Converter.ConvertError(message: "Datei konnte nicht entpackt werden") }
+        guard unzip.terminationStatus == 0 else { throw Converter.ConvertError(message: tr("Datei konnte nicht entpackt werden")) }
 
         for media in ["word/media", "ppt/media", "xl/media"] {
             let mdir = tmp.appendingPathComponent(media)

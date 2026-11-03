@@ -54,14 +54,14 @@ struct HeaderBar: View {
             HStack(spacing: 6) {
                 if battery.hasBattery {
                     HStack(spacing: 5) {
-                        Text("\(Int((battery.level * 100).rounded())) %")
+                        Text(tr("\(Int((battery.level * 100).rounded())) %"))
                             .font(.system(size: 11, weight: .semibold).monospacedDigit())
                             .foregroundStyle(Color.white.opacity(0.7))
                         BatteryIcon(level: battery.level, charging: battery.onAC && (battery.details?.chargingHW ?? battery.isCharging), width: 22)
                     }
                     .padding(.trailing, 4)
                 }
-                IconButton(symbol: model.pinned ? "pin.fill" : "pin", active: model.pinned, help: "Geöffnet lassen") {
+                IconButton(symbol: model.pinned ? "pin.fill" : "pin", active: model.pinned, help: tr("Geöffnet lassen")) {
                     model.pinned.toggle()
                 }
                 SettingsPill {
@@ -108,7 +108,7 @@ struct TabButton: View {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { model.tab = tab }
             }
             .onHover { hover = $0 }
-            .help(tab.title + " · zum Umsortieren ziehen")
+            .help(tab.title + tr(" · zum Umsortieren ziehen"))
             // Eigenes Ziehen innerhalb der Insel (kein System-Drag) → löst kein Mission Control o. Ä. aus
             .gesture(
                 DragGesture(minimumDistance: 5, coordinateSpace: .named("tabbar"))
@@ -151,7 +151,7 @@ struct HomeView: View {
                 .frame(maxWidth: showMediaCard || showVolume ? nil : .infinity)
             }
             if !showMediaCard && !showVolume && !showUpNext && calls.active == nil {
-                Text("Alles ausgeblendet – Einstellungen › Tabs › Start").font(.system(size: 12)).foregroundStyle(Color.dim)
+                Text(tr("Alles ausgeblendet – Einstellungen › Tabs › Start")).font(.system(size: 12)).foregroundStyle(Color.dim)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
@@ -200,7 +200,7 @@ struct MiniMediaCard: View {
                 }
                 .frame(width: 58, height: 58)
                 VStack(alignment: .leading, spacing: 7) {
-                    Text("Nichts wird abgespielt").font(.system(size: 13, weight: .semibold))
+                    Text(tr("Nichts wird abgespielt")).font(.system(size: 13, weight: .semibold))
                     HStack(spacing: 8) {
                         launcher(Const.spotify)
                         launcher(Const.music)
@@ -238,20 +238,20 @@ struct UpNextCard: View {
                     HStack {
                         Label("Kalender", systemImage: "calendar").font(.system(size: 12, weight: .semibold))
                         Spacer()
-                        PillButton(title: "Erlauben", tint: .red.opacity(0.85)) { cal.requestAccess() }
+                        PillButton(title: tr("Erlauben"), tint: .red.opacity(0.85)) { cal.requestAccess() }
                     }
                 }
                 if !sem.authorized && Prefs.on(Prefs.showReminders) && cal.next == nil {
                     HStack {
                         Label("Erinnerungen", systemImage: "checklist").font(.system(size: 12, weight: .semibold))
                         Spacer()
-                        PillButton(title: "Erlauben", tint: .blue.opacity(0.85)) { sem.requestAccess() }
+                        PillButton(title: tr("Erlauben"), tint: .blue.opacity(0.85)) { sem.requestAccess() }
                     }
                 }
                 if let e = cal.next {
                     TimelineView(.periodic(from: .now, by: 30)) { ctx in
                         row(color: Color(nsColor: e.calendar?.color ?? .systemRed), symbol: nil,
-                            title: e.title ?? "Termin", subtitle: CalendarService.describe(e, now: ctx.date),
+                            title: e.title ?? tr("Termin"), subtitle: CalendarService.describe(e, now: ctx.date),
                             join: CalendarService.joinURL(e))
                     }
                     .onTapGesture { AppInfo.activate("com.apple.iCal") }
@@ -265,7 +265,7 @@ struct UpNextCard: View {
                 if cal.next == nil && sem.upcoming.isEmpty && cal.authorized {
                     HStack(spacing: 8) {
                         Image(systemName: "checkmark.seal.fill").font(.system(size: 16)).foregroundStyle(.green)
-                        Text("Nichts Anstehendes").font(.system(size: 12, weight: .semibold))
+                        Text(tr("Nichts Anstehendes")).font(.system(size: 12, weight: .semibold))
                     }
                     .frame(maxHeight: .infinity)
                 }
@@ -286,7 +286,7 @@ struct UpNextCard: View {
             }
             Spacer(minLength: 0)
             if let join {
-                CircleButton(symbol: "video.fill", tint: .green, size: 22) { NSWorkspace.shared.open(join) }.help("Beitreten")
+                CircleButton(symbol: "video.fill", tint: .green, size: 22) { NSWorkspace.shared.open(join) }.help(tr("Beitreten"))
             }
         }
         .contentShape(Rectangle())
@@ -325,7 +325,7 @@ struct MediaControls: View {
             MediaButton(symbol: "forward.fill") { MediaController.shared.next() }
             Spacer(minLength: 0)
             MediaButton(symbol: "arrow.up.forward.app", size: 12) { AppInfo.activate(np.appBundleID) }
-                .help("\(np.sourceName) öffnen")
+                .help(tr("\(np.sourceName) öffnen"))
         }
     }
 }
@@ -377,7 +377,7 @@ struct EmptyMediaView: View {
             }
             .frame(width: 84, height: 84)
             VStack(alignment: .leading, spacing: 8) {
-                Text("Nichts wird abgespielt").font(.system(size: 14, weight: .semibold))
+                Text(tr("Nichts wird abgespielt")).font(.system(size: 14, weight: .semibold))
                 HStack(spacing: 8) {
                     launcher("com.spotify.client")
                     launcher("com.apple.Music")
@@ -411,7 +411,7 @@ struct NextEventCard: View {
             if !cal.authorized {
                 VStack(alignment: .leading, spacing: 6) {
                     Label("Kalender", systemImage: "calendar").font(.system(size: 12, weight: .semibold))
-                    PillButton(title: "Zugriff erlauben", tint: .red.opacity(0.85)) { cal.requestAccess() }
+                    PillButton(title: tr("Zugriff erlauben"), tint: .red.opacity(0.85)) { cal.requestAccess() }
                 }
             } else if let e = cal.next {
                 HStack(alignment: .top, spacing: 9) {
@@ -419,7 +419,7 @@ struct NextEventCard: View {
                         .fill(Color(nsColor: e.calendar?.color ?? .systemRed))
                         .frame(width: 3.5)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(e.title ?? "Termin").font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
+                        Text(e.title ?? tr("Termin")).font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
                         TimelineView(.periodic(from: .now, by: 30)) { ctx in
                             Text(CalendarService.describe(e, now: ctx.date))
                                 .font(.system(size: 11)).foregroundStyle(Color.dim).lineLimit(1)
@@ -431,7 +431,7 @@ struct NextEventCard: View {
                     Spacer(minLength: 0)
                     if let url = CalendarService.joinURL(e) {
                         CircleButton(symbol: "video.fill", tint: .green, size: 28) { NSWorkspace.shared.open(url) }
-                            .help("Beitreten")
+                            .help(tr("Beitreten"))
                     }
                 }
                 .frame(height: 46)
@@ -439,8 +439,8 @@ struct NextEventCard: View {
                 HStack(spacing: 8) {
                     Image(systemName: "calendar.badge.checkmark").font(.system(size: 18)).foregroundStyle(.red)
                     VStack(alignment: .leading, spacing: 1) {
-                        Text("Keine Termine").font(.system(size: 12.5, weight: .semibold))
-                        Text("in den nächsten 36 Stunden").font(.system(size: 11)).foregroundStyle(Color.dim)
+                        Text(tr("Keine Termine")).font(.system(size: 12.5, weight: .semibold))
+                        Text(tr("in den nächsten 36 Stunden")).font(.system(size: 11)).foregroundStyle(Color.dim)
                     }
                 }
                 .frame(height: 46)
@@ -458,7 +458,7 @@ struct CallCard: View {
             HStack(spacing: 10) {
                 AppIconView(bundleID: calls.active?.bundleID, size: 32)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(AppInfo.humanize(calls.active?.name ?? "Anruf")).font(.system(size: 12.5, weight: .semibold))
+                    Text(AppInfo.humanize(calls.active?.name ?? tr("Anruf"))).font(.system(size: 12.5, weight: .semibold))
                     TimelineView(.periodic(from: .now, by: 1)) { ctx in
                         Text(formatDuration(ctx.date.timeIntervalSince(calls.active?.start ?? ctx.date)))
                             .font(.system(size: 12, weight: .medium).monospacedDigit())
@@ -468,11 +468,11 @@ struct CallCard: View {
                 Spacer(minLength: 0)
                 CircleButton(symbol: calls.micMuted ? "mic.slash.fill" : "mic.fill",
                              tint: calls.micMuted ? .orange : Color.white.opacity(0.15), size: 30) { calls.toggleMute() }
-                    .help(calls.micMuted ? "Mikrofon an" : "Stummschalten")
+                    .help(calls.micMuted ? tr("Mikrofon an") : tr("Stummschalten"))
                 CircleButton(symbol: "arrow.up.forward", size: 30) {
                     if let b = calls.active?.bundleID { AppInfo.activate(b) }
                 }
-                .help("Zur App")
+                .help(tr("Zur App"))
             }
             .frame(height: 46)
         }
@@ -489,22 +489,22 @@ struct QuickTiles: View {
     var body: some View {
         VStack(spacing: 8) {
             HStack(spacing: 8) {
-                tile(symbol: "timer", tint: .orange, title: "Timer") {
+                tile(symbol: "timer", tint: .orange, title: tr("Timer")) {
                     TimelineView(.periodic(from: .now, by: 0.5)) { ctx in
                         if let t = timers.timers.first {
                             Text(formatRemaining(t.remaining(at: ctx.date)))
                         } else if timers.swRunning {
                             Text(formatDuration(timers.swElapsed(at: ctx.date)))
                         } else {
-                            Text("Start")
+                            Text(tr("Start"))
                         }
                     }
                 } action: { model.tab = .timer }
-                tile(symbol: "tray.full.fill", tint: .blue, title: "Ablage") {
-                    Text(shelf.items.isEmpty ? "Leer" : "\(shelf.items.count)")
+                tile(symbol: "tray.full.fill", tint: .blue, title: tr("Ablage")) {
+                    Text(shelf.items.isEmpty ? tr("Leer") : "\(shelf.items.count)")
                 } action: { model.tab = .shelf }
-                tile(symbol: "sparkle", tint: .claude, title: "Claude") {
-                    Text(claude.current != nil ? "Läuft" : (claude.history.isEmpty ? "Bereit" : "Fertig"))
+                tile(symbol: "sparkle", tint: .claude, title: tr("Claude")) {
+                    Text(claude.current != nil ? tr("Läuft") : (claude.history.isEmpty ? tr("Bereit") : tr("Fertig")))
                 } action: { model.tab = .claude }
             }
             if !badges.badges.isEmpty {
@@ -558,7 +558,7 @@ struct SettingsPill: View {
                 Image(systemName: "gearshape.fill")
                     .font(.system(size: 12, weight: .semibold))
                     .rotationEffect(.degrees(hover ? 60 : 0))
-                Text("Einstellungen").font(.system(size: 11, weight: .semibold))
+                Text(tr("Einstellungen")).font(.system(size: 11, weight: .semibold))
             }
             .foregroundStyle(hover ? Color.black : Color.white)
             .padding(.horizontal, 10).padding(.vertical, 5)
@@ -567,6 +567,6 @@ struct SettingsPill: View {
         }
         .buttonStyle(PressableStyle())
         .onHover { h in withAnimation(.easeOut(duration: 0.18)) { hover = h } }
-        .help("Einstellungen öffnen")
+        .help(tr("Einstellungen öffnen"))
     }
 }

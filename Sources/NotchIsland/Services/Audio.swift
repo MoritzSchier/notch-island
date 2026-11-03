@@ -215,31 +215,31 @@ final class CallMonitor: ObservableObject {
     private var savedInputVolume: Float?
     private var bag = Set<AnyCancellable>()
 
-    static let callApps: [String: String] = [
+    static var callApps: [String: String] { [
         "net.whatsapp.WhatsApp": "WhatsApp",
         "desktop.WhatsApp": "WhatsApp",
-        "com.hnc.Discord": "Discord",
+        "com.hnc.Discord": tr("Discord"),
         "com.apple.FaceTime": "FaceTime",
-        "com.apple.TelephonyUtilities": "Telefon",
-        "com.apple.telephonyutilities.callservicesd": "Telefon",
-        "us.zoom.xos": "Zoom",
-        "com.microsoft.teams2": "Teams",
-        "com.microsoft.teams": "Teams",
-        "com.tinyspeck.slackmacgap": "Slack",
-        "ru.keepcoder.Telegram": "Telegram",
-        "com.tdesktop.Telegram": "Telegram",
-        "com.skype.skype": "Skype",
-        "com.cisco.webexmeetingsapp": "Webex",
-        "com.google.Chrome": "Chrome",
-        "com.apple.Safari": "Safari",
-        "company.thebrowser.Browser": "Arc",
-        "org.mozilla.firefox": "Firefox",
-        "com.microsoft.edgemac": "Edge",
-        "com.brave.Browser": "Brave",
-        "com.apple.Messages": "Nachrichten",
-        "com.signal.Signal": "Signal",
-        "org.whispersystems.signal-desktop": "Signal",
-    ]
+        "com.apple.TelephonyUtilities": tr("Telefon"),
+        "com.apple.telephonyutilities.callservicesd": tr("Telefon"),
+        "us.zoom.xos": tr("Zoom"),
+        "com.microsoft.teams2": tr("Teams"),
+        "com.microsoft.teams": tr("Teams"),
+        "com.tinyspeck.slackmacgap": tr("Slack"),
+        "ru.keepcoder.Telegram": tr("Telegram"),
+        "com.tdesktop.Telegram": tr("Telegram"),
+        "com.skype.skype": tr("Skype"),
+        "com.cisco.webexmeetingsapp": tr("Webex"),
+        "com.google.Chrome": tr("Chrome"),
+        "com.apple.Safari": tr("Safari"),
+        "company.thebrowser.Browser": tr("Arc"),
+        "org.mozilla.firefox": tr("Firefox"),
+        "com.microsoft.edgemac": tr("Edge"),
+        "com.brave.Browser": tr("Brave"),
+        "com.apple.Messages": tr("Nachrichten"),
+        "com.signal.Signal": tr("Signal"),
+        "org.whispersystems.signal-desktop": tr("Signal"),
+    ] }
     static let ringApps = ["net.whatsapp.WhatsApp", "desktop.WhatsApp", "com.apple.FaceTime",
                            "com.apple.TelephonyUtilities", "com.apple.telephonyutilities.callservicesd"]
 
@@ -275,7 +275,7 @@ final class CallMonitor: ObservableObject {
                 guard let self else { return }
                 if let a = self.active {
                     let dur = formatDuration(Date().timeIntervalSince(a.start))
-                    IslandModel.shared.show(Toast(symbol: "phone.down.fill", tint: .red, title: "Anruf beendet",
+                    IslandModel.shared.show(Toast(symbol: "phone.down.fill", tint: .red, title: tr("Anruf beendet"),
                                                   subtitle: "\(a.name) · \(dur)", duration: 2.5))
                 }
                 if self.micMuted { self.setInputMuted(false) }

@@ -11,7 +11,7 @@ struct WidgetsView: View {
                 ForEach(WidgetTab.allCases) { w in
                     let sel = model.widgetTab == w
                     Button { withAnimation(.easeInOut(duration: 0.15)) { model.widgetTab = w } } label: {
-                        Label(w.rawValue, systemImage: w.icon)
+                        Label(w.title, systemImage: w.icon)
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(sel ? Color.black : Color.white.opacity(0.75))
                             .padding(.horizontal, 10).padding(.vertical, 5)
@@ -49,9 +49,9 @@ struct SystemWidget: View {
             if Opt.on(Opt.sysBluetooth) {
             Card {
                 VStack(alignment: .leading, spacing: 6) {
-                    SectionLabel(text: "Bluetooth")
+                    SectionLabel(text: tr("Bluetooth"))
                     if bt.devices.isEmpty {
-                        Text("Keine Geräte verbunden").font(.system(size: 11)).foregroundStyle(Color.white.opacity(0.4))
+                        Text(tr("Keine Geräte verbunden")).font(.system(size: 11)).foregroundStyle(Color.white.opacity(0.4))
                     }
                     ForEach(bt.devices.prefix(3)) { d in
                         HStack(spacing: 6) {
@@ -109,28 +109,28 @@ struct BatteryDetailCard: View {
             VStack(alignment: .leading, spacing: 7) {
                 HStack(spacing: 8) {
                     BatteryIcon(level: battery.level, charging: battery.onAC && (battery.details?.chargingHW ?? battery.isCharging), width: 30)
-                    Text("\(Int((battery.level * 100).rounded())) %").font(.system(size: 16, weight: .semibold).monospacedDigit())
+                    Text(tr("\(Int((battery.level * 100).rounded())) %")).font(.system(size: 16, weight: .semibold).monospacedDigit())
                     Spacer(minLength: 0)
                     if let d = battery.details, abs(d.watts) >= 0.1 {
                         HStack(spacing: 3) {
                             Image(systemName: d.watts > 0 ? "bolt.fill" : "arrow.down")
                                 .font(.system(size: 10, weight: .bold))
                             Text(String(format: "%.1f W", abs(d.watts)))
-                                .help(d.watts > 0 ? "Ladeleistung in den Akku" : "Entnahme aus dem Akku")
+                                .help(d.watts > 0 ? tr("Ladeleistung in den Akku") : tr("Entnahme aus dem Akku"))
                                 .font(.system(size: 13, weight: .semibold).monospacedDigit())
                         }
                         .foregroundStyle(d.watts > 0 ? Color.green : Color.orange)
-                        .help(d.watts > 0 ? "Wird geladen mit" : "Verbrauch")
+                        .help(d.watts > 0 ? tr("Wird geladen mit") : tr("Verbrauch"))
                     }
                 }
                 Text(statusLine).font(.system(size: 11)).foregroundStyle(Color.dim).lineLimit(1)
                 if let d = battery.details {
                     HStack(spacing: 12) {
-                        stat(health(d), "Zustand", color: d.health >= 0.8 ? .white : .orange)
-                        stat("\(d.cycles)", "Zyklen")
-                        if let t = d.temperature { stat(String(format: "%.0f °C", t), "Temp.") }
-                        if let s = d.systemWatts { stat(String(format: "%.0f W", s), "Verbrauch") }
-                        if let a = d.adapterWatts, battery.onAC { stat("\(a) W", "Netzteil") }
+                        stat(health(d), tr("Zustand"), color: d.health >= 0.8 ? .white : .orange)
+                        stat("\(d.cycles)", tr("Zyklen"))
+                        if let t = d.temperature { stat(String(format: "%.0f °C", t), tr("Temp.")) }
+                        if let s = d.systemWatts { stat(String(format: "%.0f W", s), tr("Verbrauch")) }
+                        if let a = d.adapterWatts, battery.onAC { stat("\(a) W", tr("Netzteil")) }
                     }
                 }
                 if ProcessInfo.processInfo.isLowPowerModeEnabled {
@@ -144,24 +144,24 @@ struct BatteryDetailCard: View {
         guard let d = battery.details else { return battery.statusText }
         let pct = Int((battery.level * 100).rounded())
         if battery.onAC && !d.chargingHW && d.watts <= 0.1 {
-            if battery.level >= 0.995 { return "Vollständig geladen" }
-            if d.notChargingReason != 0 { return "Ladepause bei \(pct) % · schont den Akku" }
-            return "Am Netzteil, lädt gerade nicht"
+            if battery.level >= 0.995 { return tr("Vollständig geladen") }
+            if d.notChargingReason != 0 { return tr("Ladepause bei \(pct) % · schont den Akku") }
+            return tr("Am Netzteil, lädt gerade nicht")
         }
         if d.watts > 0.1 {
-            if let m = d.minutesTo80 { return "Lädt · 80 % in ca. \(Self.hm(m))" }
-            if d.aboveOrAt80 { return battery.minutesLeft.map { "Lädt · über 80 % · voll in ca. \(Self.hm($0))" } ?? "Lädt · über 80 %" }
-            return "Lädt"
+            if let m = d.minutesTo80 { return tr("Lädt · 80 % in ca. \(Self.hm(m))") }
+            if d.aboveOrAt80 { return battery.minutesLeft.map { tr("Lädt · über 80 % · voll in ca. \(Self.hm($0))") } ?? tr("Lädt · über 80 %") }
+            return tr("Lädt")
         }
-        if battery.onAC { return battery.level >= 0.995 ? "Vollständig geladen" : "Am Netzteil, lädt nicht (Ladelimit?)" }
-        return battery.minutesLeft.map { "Akku · noch ca. \(Self.hm($0))" } ?? "Akkubetrieb"
+        if battery.onAC { return battery.level >= 0.995 ? tr("Vollständig geladen") : tr("Am Netzteil, lädt nicht (Ladelimit?)") }
+        return battery.minutesLeft.map { tr("Akku · noch ca. \(Self.hm($0))") } ?? tr("Akkubetrieb")
     }
 
     private func health(_ d: BatteryMonitor.BatteryDetails) -> String {
-        "\(Int((d.health * 100).rounded())) %"
+        tr("\(Int((d.health * 100).rounded())) %")
     }
 
-    private static func hm(_ m: Int) -> String { m >= 60 ? "\(m / 60) Std \(m % 60) Min" : "\(m) Min" }
+    private static func hm(_ m: Int) -> String { m >= 60 ? tr("\(m / 60) Std \(m % 60) Min") : tr("\(m) Min") }
 
     private func stat(_ value: String, _ label: String, color: Color = .white) -> some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -183,7 +183,7 @@ struct MirrorTabView: View {
                 if allowed {
                     CameraPreview().clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
                 } else {
-                    PillButton(title: "Kamera erlauben", symbol: "camera.fill") {
+                    PillButton(title: tr("Kamera erlauben"), symbol: "camera.fill") {
                         AVCaptureDevice.requestAccess(for: .video) { ok in DispatchQueue.main.async { allowed = ok } }
                     }
                 }
@@ -191,7 +191,7 @@ struct MirrorTabView: View {
             .frame(width: 270, height: 152)
             VStack(alignment: .leading, spacing: 6) {
                 Label("Spiegel", systemImage: "person.crop.square").font(.system(size: 15, weight: .semibold))
-                Text("Kurzer Check vor dem Call. Die Kamera läuft nur, solange dieser Tab offen ist – das grüne Licht geht danach wieder aus.")
+                Text(tr("Kurzer Check vor dem Call. Die Kamera läuft nur, solange dieser Tab offen ist – das grüne Licht geht danach wieder aus."))
                     .font(.system(size: 12)).foregroundStyle(Color.dim)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -211,15 +211,15 @@ struct MirrorWidget: View {
                     CameraPreview()
                         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                 } else {
-                    PillButton(title: "Kamera erlauben", symbol: "camera.fill") {
+                    PillButton(title: tr("Kamera erlauben"), symbol: "camera.fill") {
                         AVCaptureDevice.requestAccess(for: .video) { ok in DispatchQueue.main.async { allowed = ok } }
                     }
                 }
             }
             .frame(width: 196, height: 128)
             VStack(alignment: .leading, spacing: 4) {
-                Text("Spiegel").font(.system(size: 14, weight: .semibold))
-                Text("Kurzer Check vor dem Call – die Kamera läuft nur, solange dieser Tab offen ist.")
+                Text(tr("Spiegel")).font(.system(size: 14, weight: .semibold))
+                Text(tr("Kurzer Check vor dem Call – die Kamera läuft nur, solange dieser Tab offen ist."))
                     .font(.system(size: 11.5)).foregroundStyle(Color.dim)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -283,9 +283,9 @@ struct ClipboardWidget: View {
         } else {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
-                    Text(clip.items.count == 1 ? "1 Eintrag" : "\(clip.items.count) Einträge")
+                    Text(clip.items.count == 1 ? tr("1 Eintrag") : tr("\(clip.items.count) Einträge"))
                         .font(.system(size: 10.5, weight: .medium)).foregroundStyle(Color.white.opacity(0.45))
-                    Text("· Klicken zum Kopieren").font(.system(size: 10.5)).foregroundStyle(Color.white.opacity(0.3))
+                    Text(tr("· Klicken zum Kopieren")).font(.system(size: 10.5)).foregroundStyle(Color.white.opacity(0.3))
                     Spacer()
                     Button { withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { clip.clear() } } label: {
                         Label("Alle löschen", systemImage: "trash").font(.system(size: 10.5, weight: .semibold)).foregroundStyle(.red)
@@ -318,7 +318,7 @@ struct ClipRow: View {
         Group {
             if editing {
                 HStack(alignment: .top, spacing: 8) {
-                    TextField("Text", text: $draft, axis: .vertical)
+                    TextField(tr("Text"), text: $draft, axis: .vertical)
                         .textFieldStyle(.plain)
                         .font(.system(size: 11.5))
                         .lineLimit(1...4)
@@ -327,11 +327,11 @@ struct ClipRow: View {
                     Button(action: save) {
                         Image(systemName: "checkmark.circle.fill").font(.system(size: 15)).foregroundStyle(.green)
                     }
-                    .buttonStyle(.plain).help("Speichern")
+                    .buttonStyle(.plain).help(tr("Speichern"))
                     Button(action: endEditing) {
                         Image(systemName: "xmark.circle.fill").font(.system(size: 15)).foregroundStyle(Color.white.opacity(0.45))
                     }
-                    .buttonStyle(.plain).help("Abbrechen")
+                    .buttonStyle(.plain).help(tr("Abbrechen"))
                 }
                 .padding(.horizontal, 10).padding(.vertical, 6)
                 .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.white.opacity(0.12)))
@@ -350,11 +350,11 @@ struct ClipRow: View {
                         Button { startEditing() } label: {
                             Image(systemName: "pencil").font(.system(size: 11, weight: .semibold))
                         }
-                        .buttonStyle(.plain).foregroundStyle(Color.white.opacity(0.7)).help("Bearbeiten")
+                        .buttonStyle(.plain).foregroundStyle(Color.white.opacity(0.7)).help(tr("Bearbeiten"))
                         Button { withAnimation { ClipboardHistory.shared.remove(clip.id) } } label: {
                             Image(systemName: "trash").font(.system(size: 11, weight: .semibold))
                         }
-                        .buttonStyle(.plain).foregroundStyle(.red).help("Löschen")
+                        .buttonStyle(.plain).foregroundStyle(.red).help(tr("Löschen"))
                     } else {
                         Text(clip.date, style: .time).font(.system(size: 10)).foregroundStyle(Color.white.opacity(0.35))
                     }
@@ -406,7 +406,7 @@ struct NoteWidget: View {
             .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.cardFill))
             .overlay(alignment: .topLeading) {
                 if note.isEmpty {
-                    Text("Schnelle Notiz …").font(.system(size: 12.5)).foregroundStyle(Color.white.opacity(0.35))
+                    Text(tr("Schnelle Notiz …")).font(.system(size: 12.5)).foregroundStyle(Color.white.opacity(0.35))
                         .padding(.horizontal, 13).padding(.vertical, 8).allowsHitTesting(false)
                 }
             }
