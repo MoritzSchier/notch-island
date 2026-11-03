@@ -176,6 +176,31 @@ enum DevBridge {
                 log("Ordner lesbar: \(dirOK)")
             }
             log("Mitteilungs-DB: \(NotificationDBMonitor.path ?? "nicht lesbar") · Kandidaten: \(NotificationDBMonitor.candidatePaths) · exists: \(NotificationDBMonitor.candidatePaths.map { FileManager.default.fileExists(atPath: $0) })")
+        case "testmsg":
+            let texts = ["Hey! Kommst du heute Abend auch mit ins Kino? 🎬", "Wir treffen uns um 19:30 vor dem Eingang, ich hab schon Karten für uns alle besorgt.", "Sag Bescheid ✌️"]
+            let i = parts.count > 1 ? (Int(parts[1]) ?? 0) : 0
+            NotificationBannerMonitor.shared.deliver(bundleID: "net.whatsapp.WhatsApp", title: "Anna", subtitle: nil, body: texts[i % texts.count], element: nil)
+        case "setup": SetupWindow.show()
+        case "setupsnaps":
+            // Bilder aller Assistenten-Seiten (setup_N.png)
+            for s in SetupView.Step.allCases {
+                let w = NSWindow(contentRect: NSRect(x: -4000, y: -4000, width: 560, height: 560), styleMask: [.titled], backing: .buffered, defer: false)
+                let v = NSHostingView(rootView: SetupView(onFinish: {}, initialStep: s))
+                v.frame = NSRect(x: 0, y: 0, width: 560, height: 560)
+                w.contentView = v
+                w.orderFrontRegardless()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6 + Double(s.rawValue) * 0.1) {
+                    if let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds) {
+                        v.cacheDisplay(in: v.bounds, to: rep)
+                        if let png = rep.representation(using: .png, properties: [:]) {
+                            try? png.write(to: dir.appendingPathComponent("setup_\(s.rawValue).png"))
+                        }
+                    }
+                    w.orderOut(nil)
+                }
+            }
+        case "settings": (NSApp.delegate as? AppDelegate)?.openSettings()
+        case "notedb": log("DB:\n" + NotificationDBMonitor.debugDescription())
         case "testnotify":
             // Test-Mitteilung über osascript (erscheint als „Skripteditor“)
             let p = Process()

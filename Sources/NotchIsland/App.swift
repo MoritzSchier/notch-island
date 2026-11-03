@@ -53,6 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DragGuard.shared.start()
             ClaudeUsage.shared.start()
             RemindersService.shared.start()
+            Updater.shared.start()
             _ = ShelfStore.shared
             DevBridge.log("Dienste gestartet")
             IslandModel.shared.bind()
@@ -70,6 +71,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             UserDefaults.standard.set(true, forKey: "didSetupLoginItem")
             try? SMAppService.mainApp.register()
         }
+
+        // Erster Start: Einrichtungsassistent
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { SetupWindow.showIfNeeded() }
 
         // Begrüßung
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
@@ -141,6 +145,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         menu.addItem(withTitle: "Insel öffnen", action: #selector(openIsland), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Einstellungen …", action: #selector(openSettings), keyEquivalent: ",").target = self
+        menu.addItem(withTitle: "Einrichtung …", action: #selector(openSetup), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Nach Updates suchen", action: #selector(checkUpdates), keyEquivalent: "").target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: "Notch Island beenden", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         item.menu = menu
@@ -152,10 +158,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         IslandModel.shared.hold("menu", max: 8)
     }
 
+    @objc private func openSetup() { SetupWindow.show() }
+
+    @objc private func checkUpdates() {
+        Updater.shared.check()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+            switch Updater.shared.state {
+            case .upToDate: IslandModel.shared.show(Toast(symbol: "checkmark.circle.fill", tint: .green, title: "Notch Island ist aktuell", subtitle: "Version \(Updater.shared.currentVersion)", duration: 3))
+            case .notConfigured: IslandModel.shared.show(Toast(symbol: "questionmark.circle", tint: .orange, title: "Kein Update-Repository", subtitle: "Einstellungen › Update", duration: 3))
+            case .failed(let e): IslandModel.shared.show(Toast(symbol: "exclamationmark.triangle.fill", tint: .orange, title: "Update-Prüfung fehlgeschlagen", subtitle: e, duration: 4))
+            default: break
+            }
+        }
+    }
+
     @objc func openSettings() {
         IslandModel.shared.collapse()
         if settingsWindow == nil {
-            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 540, height: 680),
+            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 640),
                              styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
             w.title = "Notch Island"
             w.isReleasedWhenClosed = false

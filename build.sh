@@ -13,8 +13,14 @@ cd "$(dirname "$0")"
 
 VERSION="1.0.0"
 BUNDLE_ID="io.github.notchisland"
+GITHUB_REPO=""          # z. B. "deinname/notch-island" – dort sucht die App nach Updates
 INSTALL_DIR="$HOME/Applications"
 [ -f local.env ] && source ./local.env   # darf auch UNIVERSAL=1 / PACKAGE=1 setzen
+# Update-Quelle automatisch aus dem Git-Remote ableiten (github.com/<besitzer>/<repo>)
+if [ -z "$GITHUB_REPO" ] && command -v git >/dev/null 2>&1; then
+  ORIGIN="$(git remote get-url origin 2>/dev/null || true)"
+  GITHUB_REPO="$(printf '%s' "$ORIGIN" | sed -nE 's#.*github\.com[:/]([^/]+/[^/.]+)(\.git)?$#\1#p')"
+fi
 
 UNIVERSAL="${UNIVERSAL:-0}"; PACKAGE="${PACKAGE:-0}"
 [ "$PACKAGE" = 1 ] && UNIVERSAL=1
@@ -56,7 +62,7 @@ fi
 
 APP="$INSTALL_DIR/Notch Island.app"
 mkdir -p "$INSTALL_DIR"
-PLIST="$(sed -e "s/__BUNDLE_ID__/$BUNDLE_ID/g" -e "s/__VERSION__/$VERSION/g" Resources/Info.plist)"
+PLIST="$(sed -e "s/__BUNDLE_ID__/$BUNDLE_ID/g" -e "s/__VERSION__/$VERSION/g" -e "s#__REPO__#$GITHUB_REPO#g" Resources/Info.plist)"
 STAMP=".build/.installed"
 
 # Unverändert? Dann nur neu starten – so bleiben Signatur und Freigaben gleich.
@@ -76,7 +82,7 @@ make_app() {
   cp "$BIN/NotchIsland" "$BIN/notch-mcp" "$A/Contents/MacOS/"
   # Debug-Infos entfernen (enthalten sonst lokale Pfade wie /Users/<Name>/…)
   strip -S -x "$A/Contents/MacOS/NotchIsland" "$A/Contents/MacOS/notch-mcp" 2>>"$LOG" || true
-  sed -e "s/__BUNDLE_ID__/$ID/g" -e "s/__VERSION__/$VERSION/g" Resources/Info.plist > "$A/Contents/Info.plist"
+  sed -e "s/__BUNDLE_ID__/$ID/g" -e "s/__VERSION__/$VERSION/g" -e "s#__REPO__#$GITHUB_REPO#g" Resources/Info.plist > "$A/Contents/Info.plist"
   iconutil -c icns Resources/AppIcon.iconset -o "$A/Contents/Resources/AppIcon.icns" >>"$LOG" 2>&1 || true
   xattr -cr "$A" 2>/dev/null || true
   # Feste Anforderung "identifier" → Freigaben (Bedienungshilfen usw.) bleiben nach Updates erhalten
@@ -100,10 +106,7 @@ make_app "$APP" "$BUNDLE_ID"
 cp "$BIN/NotchIsland" "$STAMP"
 say "✓ Installiert: $APP"
 
-# Claude Desktop verbinden (nur wenn Claude installiert ist) – fügt das MCP-Werkzeug "notch-island" hinzu
-if [ -d "$HOME/Library/Application Support/Claude" ]; then
-  "$APP/Contents/MacOS/notch-mcp" --install-claude >> "$LOG" 2>&1 && say "✓ Mit Claude Desktop verbunden (Claude einmal neu starten)"
-fi
+# Claude wird im Einrichtungsassistenten (erster Start) verbunden – nicht automatisch.
 
 # Nur Entwicklung: Entwicklungs-Brücke einschalten (Datei .devbridge im Projektordner)
 if [ -f .devbridge ]; then defaults write "$BUNDLE_ID" devBridgeDir "$(pwd)"; else defaults delete "$BUNDLE_ID" devBridgeDir 2>/dev/null || true; fi

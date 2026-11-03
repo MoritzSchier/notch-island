@@ -236,6 +236,72 @@ struct SecondaryBubble: View {
     }
 }
 
+// MARK: - Mitteilung im iPhone-Stil
+
+struct MessageToastView: View {
+    let toast: Toast
+    let message: MessageInfo
+    @ObservedObject var model = IslandModel.shared
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Color.clear.frame(height: model.notchSize.height - 2)
+            ZStack(alignment: .top) {
+                // Stapel: weitere Mitteilungen derselben App schauen unten heraus
+                if message.count > 2 {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(0.05))
+                        .padding(.horizontal, 26).offset(y: 13)
+                }
+                if message.count > 1 {
+                    RoundedRectangle(cornerRadius: 17, style: .continuous).fill(Color.white.opacity(0.08))
+                        .padding(.horizontal, 13).offset(y: 6.5)
+                }
+                RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color(white: 0.13))
+                HStack(alignment: .top, spacing: 11) {
+                    ZStack(alignment: .bottomTrailing) {
+                        if let id = message.bundleID, let img = AppInfo.icon(id) {
+                            Image(nsImage: img).resizable().interpolation(.high).frame(width: 36, height: 36)
+                        } else {
+                            Image(systemName: "bell.fill").font(.system(size: 16)).foregroundStyle(.white)
+                                .frame(width: 36, height: 36).background(RoundedRectangle(cornerRadius: 9).fill(Color.red))
+                        }
+                    }
+                    VStack(alignment: .leading, spacing: 1) {
+                        HStack(spacing: 6) {
+                            Text(message.sender).font(.system(size: 13.5, weight: .semibold)).lineLimit(1)
+                            Spacer(minLength: 4)
+                            TimelineView(.periodic(from: .now, by: 30)) { ctx in
+                                Text(Self.ago(message.date, now: ctx.date)).font(.system(size: 10.5)).foregroundStyle(Color.dim)
+                            }
+                        }
+                        Text(message.text.isEmpty ? message.appName : message.text)
+                            .font(.system(size: 12.5)).foregroundStyle(Color.white.opacity(0.85))
+                            .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                        if message.count > 1 {
+                            Text("\(message.appName) · \(message.count) Mitteilungen")
+                                .font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.dim)
+                        }
+                    }
+                }
+                .padding(.horizontal, 12).padding(.vertical, 9)
+            }
+            .padding(.horizontal, 10)
+            .padding(.bottom, message.count > 2 ? 22 : (message.count > 1 ? 16 : 9))
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if let a = toast.onTap { a() }
+            model.dismissToast(id: toast.id)
+        }
+    }
+
+    static func ago(_ d: Date, now: Date) -> String {
+        let s = Int(now.timeIntervalSince(d))
+        return s < 60 ? "jetzt" : "vor \(s / 60) Min"
+    }
+}
+
 // MARK: - Anruf klingelt
 
 struct RingingView: View {
@@ -268,6 +334,14 @@ struct ToastView: View {
     @ObservedObject var model = IslandModel.shared
 
     var body: some View {
+        if let m = toast.message {
+            MessageToastView(toast: toast, message: m)
+        } else {
+            plain
+        }
+    }
+
+    private var plain: some View {
         VStack(spacing: 0) {
             Color.clear.frame(height: model.notchSize.height - 4)
             HStack(spacing: 12) {

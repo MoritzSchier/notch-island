@@ -25,6 +25,9 @@ struct SettingsView: View {
     @AppStorage(Prefs.showBanners) private var showBanners = true
     @AppStorage(Prefs.screenMode) private var screenMode = "mouse"
 
+    @ObservedObject private var model = IslandModel.shared
+    @ObservedObject private var updater = Updater.shared
+    @AppStorage(Updater.autoKey) private var autoUpdate = true
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var axTrusted = AXIsProcessTrusted()
     @State private var fullDisk = NotificationDBMonitor.path != nil
@@ -34,12 +37,13 @@ struct SettingsView: View {
     private let refresh = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        Form {
+        TabView {
+            Form {
             Section("Allgemein") {
                 Toggle("Öffnen, wenn die Maus auf die Notch zeigt", isOn: $hoverToOpen)
                 Picker("Standard-Tab beim Öffnen", selection: $defaultTab) {
                     Text("Automatisch (passend zur Aktivität)").tag("auto")
-                    ForEach(IslandTab.allCases) { t in Label(t.title, systemImage: t.icon).tag(t.rawValue) }
+                    ForEach(IslandTab.allCases.filter { model.isVisible($0) }) { t in Label(t.title, systemImage: t.icon).tag(t.rawValue) }
                 }
                 HStack {
                     Text("Tab-Reihenfolge: in der Insel per Drag & Drop ändern")
@@ -59,6 +63,46 @@ struct SettingsView: View {
                     }
             }
 
+            Section("Anzeigen") {
+                Toggle("Lautstärke in der Notch", isOn: $showVolumeHUD)
+                Toggle("Helligkeit in der Notch", isOn: $showBrightnessHUD)
+            }
+
+            Section("Ausprobieren") {
+                HStack {
+                    Button("Hinweis") {
+                        IslandModel.shared.show(Toast(symbol: "airpodspro", tint: .white, title: "AirPods Pro", subtitle: "Verbunden",
+                                                      trailing: .ring(0.82), duration: 3))
+                    }
+                    Button("10-Sek-Timer") { TimerService.shared.start(seconds: 10, label: "Test-Timer") }
+                    Button("Laden") {
+                        IslandModel.shared.show(Toast(symbol: "bolt.fill", tint: .green, title: "Lädt",
+                                                      trailing: .battery(BatteryMonitor.shared.level, charging: true), duration: 3))
+                    }
+                }
+            }
+        
+            }
+            .formStyle(.grouped)
+            .tabItem { Label("Allgemein", systemImage: "gearshape") }
+
+            Form {
+            Section("Welche Tabs zeigt die Insel?") {
+                ForEach(IslandTab.allCases) { t in
+                    Toggle(isOn: Binding(get: { model.isVisible(t) }, set: { model.setVisible(t, $0) })) {
+                        Label(t.title, systemImage: t.icon)
+                    }
+                    .disabled(t == .home)
+                }
+                Text("„Start“ ist immer da. Die Reihenfolge änderst du direkt in der Insel per Drag & Drop.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Button("Reihenfolge zurücksetzen") { IslandModel.shared.resetTabOrder() }
+            }
+            }
+            .formStyle(.grouped)
+            .tabItem { Label("Tabs", systemImage: "square.grid.2x2") }
+
+            Form {
             Section("Live-Aktivitäten") {
                 Toggle("Musik & Videos (Spotify, Musik, YouTube in Chrome)", isOn: $showMedia)
                 Toggle("Anrufe (WhatsApp, Discord, FaceTime, Zoom, Teams …)", isOn: $detectCalls)
@@ -71,11 +115,6 @@ struct SettingsView: View {
                 Toggle("Neue Mitteilungen (Dock-Badges, falls kein Banner kam)", isOn: $showBadges)
                 Toggle("Laden, Akku schwach", isOn: $showBattery)
                 Toggle("Bluetooth-Geräte (AirPods …)", isOn: $showBluetooth)
-            }
-
-            Section("Anzeigen") {
-                Toggle("Lautstärke in der Notch", isOn: $showVolumeHUD)
-                Toggle("Helligkeit in der Notch", isOn: $showBrightnessHUD)
             }
 
             Section("Ablage & Zwischenablage") {
@@ -97,7 +136,31 @@ struct SettingsView: View {
                 Button("Zielordner für Drag & Drop hinzufügen …") { addFolder() }
                     .disabled(folders.count >= 3)
             }
+            }
+            .formStyle(.grouped)
+            .tabItem { Label("Aktivitäten", systemImage: "bell.badge") }
 
+            Form {
+            Section("Claude") {
+                Picker("Claude als Haupt-Tab", selection: $claudePrimary) {
+                    ForEach(ClaudePrimaryMode.allCases) { m in Text(m.title).tag(m.rawValue) }
+                }
+                Text("„Bei großen Aufgaben“: Sobald Claude länger arbeitet oder Schritte meldet, öffnet die Insel direkt im Claude-Tab und zeigt Claude zuerst.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Button("Mit Claude Desktop verbinden (MCP-Werkzeug „notch_status“)") { connectClaude() }
+                if let claudeMessage { Text(claudeMessage).font(.caption).foregroundStyle(.secondary).textSelection(.enabled) }
+                Button("Claude-Code-Hooks in die Zwischenablage kopieren") { copyHooks() }
+                Button("Vorschau: Claude-Fortschritt abspielen") { ClaudeService.shared.demo() }
+                Button("Vorschau: Erlaubnis-Anfrage in der Notch") { ClaudeService.shared.demoPermission() }
+                Button("Vorschau: Rückfrage mit Auswahl") { ClaudeService.shared.demoQuestion() }
+                Text("Erlaubnis-Anfragen und Rückfragen von Claude (z. B. „Welchen Weg möchtest du?“) erscheinen immer in der Notch – auch wenn Claude offen ist – mit denselben Antwortmöglichkeiten wie im Chat. Benötigt die Bedienungshilfen-Freigabe.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            }
+            .formStyle(.grouped)
+            .tabItem { Label("Claude", systemImage: "sparkle") }
+
+            Form {
             Section("Berechtigungen") {
                 HStack {
                     Label("Bedienungshilfen", systemImage: axTrusted ? "checkmark.circle.fill" : "exclamationmark.circle")
@@ -129,38 +192,47 @@ struct SettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
 
-            Section("Claude") {
-                Picker("Claude als Haupt-Tab", selection: $claudePrimary) {
-                    ForEach(ClaudePrimaryMode.allCases) { m in Text(m.title).tag(m.rawValue) }
-                }
-                Text("„Bei großen Aufgaben“: Sobald Claude länger arbeitet oder Schritte meldet, öffnet die Insel direkt im Claude-Tab und zeigt Claude zuerst.")
-                    .font(.caption).foregroundStyle(.secondary)
-                Button("Mit Claude Desktop verbinden (MCP-Werkzeug „notch_status“)") { connectClaude() }
-                if let claudeMessage { Text(claudeMessage).font(.caption).foregroundStyle(.secondary).textSelection(.enabled) }
-                Button("Claude-Code-Hooks in die Zwischenablage kopieren") { copyHooks() }
-                Button("Vorschau: Claude-Fortschritt abspielen") { ClaudeService.shared.demo() }
-                Button("Vorschau: Erlaubnis-Anfrage in der Notch") { ClaudeService.shared.demoPermission() }
-                Button("Vorschau: Rückfrage mit Auswahl") { ClaudeService.shared.demoQuestion() }
-                Text("Erlaubnis-Anfragen und Rückfragen von Claude (z. B. „Welchen Weg möchtest du?“) erscheinen immer in der Notch – auch wenn Claude offen ist – mit denselben Antwortmöglichkeiten wie im Chat. Benötigt die Bedienungshilfen-Freigabe.")
-                    .font(.caption).foregroundStyle(.secondary)
+            Section {
+                Button("Einrichtungsassistent öffnen …") { SetupWindow.show() }
             }
+            }
+            .formStyle(.grouped)
+            .tabItem { Label("Berechtigungen", systemImage: "lock.shield") }
 
-            Section("Ausprobieren") {
+            Form {
+            Section("Updates") {
                 HStack {
-                    Button("Hinweis") {
-                        IslandModel.shared.show(Toast(symbol: "airpodspro", tint: .white, title: "AirPods Pro", subtitle: "Verbunden",
-                                                      trailing: .ring(0.82), duration: 3))
-                    }
-                    Button("10-Sek-Timer") { TimerService.shared.start(seconds: 10, label: "Test-Timer") }
-                    Button("Laden") {
-                        IslandModel.shared.show(Toast(symbol: "bolt.fill", tint: .green, title: "Lädt",
-                                                      trailing: .battery(BatteryMonitor.shared.level, charging: true), duration: 3))
+                    Text("Installiert: Version \(updater.currentVersion)")
+                    Spacer()
+                    switch updater.state {
+                    case .checking: ProgressView().controlSize(.small)
+                    case .upToDate: Label("Aktuell", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                    case .available(let r): Text("Neu: \(r.version)").foregroundStyle(.blue).bold()
+                    case .downloading, .installing: Text("Wird installiert …")
+                    case .failed(let e): Text(e).foregroundStyle(.orange).lineLimit(1)
+                    case .notConfigured: Text("Kein Repository eingetragen").foregroundStyle(.secondary)
+                    case .idle: EmptyView()
                     }
                 }
+                if let r = updater.available {
+                    if !r.notes.isEmpty { Text(r.notes).font(.caption).foregroundStyle(.secondary).lineLimit(6) }
+                    HStack {
+                        Button("Jetzt installieren") { updater.install() }.buttonStyle(.borderedProminent)
+                        Button("Auf GitHub ansehen") { NSWorkspace.shared.open(r.pageURL) }
+                    }
+                } else {
+                    Button("Nach Updates suchen") { updater.check() }
+                }
+                Toggle("Automatisch nach Updates suchen", isOn: $autoUpdate)
+                TextField("GitHub-Repository (besitzer/notch-island)", text: Binding(get: { updater.repository }, set: { updater.repository = $0 }))
+                Text("Notch Island fragt dazu nur die öffentliche GitHub-Seite des Projekts ab. Beim Installieren wird die neue Version geladen, die App ausgetauscht und neu gestartet – deine Einstellungen und Freigaben bleiben.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
+            }
+            .formStyle(.grouped)
+            .tabItem { Label("Update", systemImage: "arrow.down.circle") }
         }
-        .formStyle(.grouped)
-        .frame(minWidth: 520, minHeight: 640)
+        .frame(minWidth: 600, minHeight: 600)
         .onReceive(refresh) { _ in axTrusted = AXIsProcessTrusted(); fullDisk = NotificationDBMonitor.path != nil }
     }
 

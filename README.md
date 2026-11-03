@@ -12,7 +12,7 @@
 |---|---|
 | 🎵 **Musik & Videos** | Spotify, Apple Music, YouTube in Chrome – Cover, Titel, Fortschritt, Steuerung, Lautstärke, Klangwellen |
 | 📞 **Anrufe** | WhatsApp, Discord, FaceTime/iPhone, Zoom, Teams, Slack, Telegram, Browser-Calls – mit Dauer und Stummschalten |
-| 💬 **Mitteilungen** | WhatsApp, Mail, Chrome, Nachrichten … mit Absender und Text; Klick öffnet den Chat |
+| 💬 **Mitteilungen** | wie am iPhone: Absender + erste Zeilen, gestapelt pro App – WhatsApp, Mail, Chrome, Nachrichten …; auch im Fokus-Modus |
 | ✨ **Claude** | Live-Fortschritt mit Schritten, „Antwort bereit“, **Erlaubnis-Anfragen und Rückfragen direkt in der Insel beantworten**, Nutzungslimit |
 | ⏱ **Timer & Stoppuhr** | mit Alarm, +1 Min, Stopp |
 | 📂 **Ablage (Dropzone)** | Dateien auf die Notch ziehen → ablegen, teilen, AirDrop, ZIP, **konvertieren** (PDF, DOCX, JPEG, PNG, HEIC, MP4, MOV, MP3 …) und **verkleinern** |
@@ -22,7 +22,7 @@
 | 🔋 **System** | Akku (Watt, Zeit bis 80 %, Zustand, Zyklen), Bluetooth/AirPods, Downloads, Kamera/Mikrofon-Anzeige |
 | 🌐 **Websites, Spiegel, Zwischenablage-Verlauf, Notiz** | |
 
-Tabs lassen sich per Drag & Drop sortieren. Die Insel klappt automatisch zu, sobald die Maus weg ist.
+Tabs lassen sich per Drag & Drop sortieren und in den Einstellungen › Tabs ein- und ausblenden. Ein **Einrichtungsassistent** führt beim ersten Start durch alle Freigaben, und **Updates** werden automatisch angeboten (ein Klick lädt die neue Version von GitHub und startet neu). Die Insel klappt automatisch zu, sobald die Maus weg ist.
 
 > Konvertieren von Office-Dateien nutzt das, was installiert ist: Word/PowerPoint oder Pages/Keynote/Numbers. MP3 braucht zusätzlich `lame` (`brew install lame`). Alles andere funktioniert ohne Zusatzprogramme.
 
@@ -53,11 +53,12 @@ Die App ist nicht von Apple beglaubigt. Beim ersten Start daher: **Rechtsklick �
 
 ## Berechtigungen
 
-Notch Island fragt nur, was es für eine Funktion wirklich braucht:
+Beim ersten Start öffnet sich der **Einrichtungsassistent** und fragt alles Schritt für Schritt an (jederzeit wieder über das Menüleisten-Symbol › „Einrichtung …“). Notch Island fragt nur, was es für eine Funktion wirklich braucht:
 
 | Freigabe | wofür |
 |---|---|
-| **Bedienungshilfen** (wichtigste) | Mitteilungen mit Text, Claude-Erkennung & -Antworten, Dock-Badges, Medientasten |
+| **Bedienungshilfen** (wichtigste) | Claude-Erkennung & -Antworten, Mitteilungs-Banner, Dock-Badges, Medientasten |
+| Festplattenvollzugriff (optional) | Mitteilungen immer anzeigen – auch bei Fokus/„Nicht stören“ (liest nur die Mitteilungsliste) |
 | Automation (Spotify, Musik, Chrome) | was gerade läuft + Steuerung – wird beim ersten Mal einzeln abgefragt |
 | Kalender, Erinnerungen | nächster Termin, fällige Erinnerungen |
 | Kamera | nur für den Spiegel-Tab, solange er offen ist |
@@ -83,6 +84,14 @@ Alles läuft lokal auf deinem Mac. Es gibt keine Analyse, kein Konto, keinen Ser
 - **Insel reagiert nicht / nichts wird erkannt:** Systemeinstellungen › Datenschutz & Sicherheit › Bedienungshilfen › „Notch Island“ aus- und wieder einschalten.
 - **Mission Control öffnet beim Ziehen:** Prüfe *Systemeinstellungen › Schreibtisch & Dock › Aktive Ecken*.
 - **Baufehler:** Details stehen in `build.log`. Meist hilft `xcode-select --install`.
+
+## Updates veröffentlichen
+
+1. In `build.sh` die `VERSION` erhöhen (z. B. `1.1.0`).
+2. `./build.sh --package` → erzeugt `dist/NotchIsland-1.1.0.zip` (Apple Silicon + Intel).
+3. Auf GitHub › Releases › „Draft a new release“ › Tag `v1.1.0` › die ZIP anhängen › veröffentlichen.
+
+Alle installierten Apps zeigen dann „Update verfügbar“. Die Update-Quelle wird beim Bauen automatisch aus dem Git-Remote (`origin`) übernommen; sonst in den Einstellungen › Update eintragen.
 
 ## Entwickeln
 

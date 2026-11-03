@@ -69,20 +69,28 @@ final class NotificationBannerMonitor {
         seen[key] = now
         if let id = bundleID, id == Const.bundleID || AppInfo.frontmost == id { return }
         if let id = bundleID { recentApps[id] = now }
-        let name = appName ?? bundleID.map { AppInfo.name($0) }
-        var title = rawTitle.isEmpty ? (name ?? "Mitteilung") : rawTitle
-        var sub: String? = text.isEmpty ? nil : String(text.prefix(160))
-        if let n = name, title == n, let s = sub { title = s; sub = nil }
-        DevBridge.log("Mitteilung: \(bundleID ?? "?") · \(title) · \(sub ?? "")")
-        let icon = bundleID.flatMap { AppInfo.icon($0) }
-        IslandModel.shared.show(Toast(
-            symbol: "bell.badge.fill", image: icon, tint: .red, title: String(title.prefix(80)), subtitle: sub,
-            trailing: .text(name ?? ""), duration: 5,
-            onTap: {
-                // Banner "anklicken" → öffnet den Chat/die Mail direkt; sonst die App
-                if let el = element, AXUIElementPerformAction(el, kAXPressAction as CFString) == .success { return }
-                if let bundleID { AppInfo.activate(bundleID) }
-            }))
+        let name = appName ?? bundleID.map { AppInfo.name($0) } ?? "Mitteilung"
+        var sender = rawTitle.isEmpty ? name : rawTitle
+        var msg = text
+        if sender == name, !msg.isEmpty, subtitle == nil, let b = msg.components(separatedBy: " · ").first, b.count < 40, msg.contains(" · ") {
+            sender = b; msg = String(msg.dropFirst(b.count + 3))
+        }
+        DevBridge.log("Mitteilung: \(bundleID ?? "?") · \(sender) · \(msg)")
+        let model = IslandModel.shared
+        let tap: () -> Void = {
+            // Banner "anklicken" → öffnet den Chat/die Mail direkt; sonst die App
+            if let el = element, AXUIElementPerformAction(el, kAXPressAction as CFString) == .success { return }
+            if let bundleID { AppInfo.activate(bundleID) }
+        }
+        // Wie am iPhone: weitere Mitteilungen derselben App stapeln sich auf der aktuellen
+        var info = MessageInfo(bundleID: bundleID, appName: name, sender: String(sender.prefix(60)), text: String(msg.prefix(220)))
+        var toast = Toast(symbol: "bell.badge.fill", tint: .red, title: info.sender, subtitle: msg, duration: 6, onTap: tap)
+        if let cur = model.toast, let m = cur.message, m.bundleID == bundleID {
+            info.count = m.count + 1
+            toast.id = cur.id
+        }
+        toast.message = info
+        model.show(toast)
     }
 
     // MARK: Auslesen
@@ -247,6 +255,7 @@ final class NotificationDBMonitor {
                 let wasAvailable = self.available
                 self.available = rows != nil
                 guard let rows else { return }
+                if !rows.isEmpty { DevBridge.log("Mitteilungs-DB: \(rows.count) neu (nach \(self.lastRec))") }
                 if self.lastRec < 0 || !wasAvailable {
                     // Beim Start nur den Stand merken, alte Mitteilungen nicht zeigen
                     self.lastRec = rows.map(\.rec).max() ?? max(self.lastRec, 0)
@@ -254,7 +263,7 @@ final class NotificationDBMonitor {
                 }
                 for r in rows.sorted(by: { $0.rec < $1.rec }) {
                     self.lastRec = max(self.lastRec, r.rec)
-                    NotificationBannerMonitor.shared.deliver(bundleID: r.app, title: r.title, subtitle: r.subtitle, body: r.body, element: nil)
+                    NotificationBannerMonitor.shared.deliver(bundleID: Self.properBundleID(r.app), title: r.title, subtitle: r.subtitle, body: r.body, element: nil)
                 }
             }
         }
@@ -292,6 +301,48 @@ final class NotificationDBMonitor {
             rows.append(Row(rec: rec, app: app, title: title, subtitle: sub, body: body))
         }
         return rows
+    }
+
+    /// Die Datenbank speichert Bundle-IDs klein geschrieben – echte Schreibweise über LaunchServices holen
+    private static var idCache: [String: String] = [:]
+    static func properBundleID(_ s: String) -> String {
+        if let c = idCache[s] { return c }
+        var r = s
+        if let u = NSWorkspace.shared.urlForApplication(withBundleIdentifier: s), let id = Bundle(url: u)?.bundleIdentifier { r = id }
+        idCache[s] = r
+        return r
+    }
+
+    /// Entwicklung: Tabellen und letzte Einträge beschreiben
+    static func debugDescription() -> String {
+        guard let path else { return "keine DB" }
+        var db: OpaquePointer?
+        guard sqlite3_open_v2(path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else { return "open fehlgeschlagen: \(String(cString: sqlite3_errmsg(db)))" }
+        defer { sqlite3_close(db) }
+        var out: [String] = []
+        func q(_ sql: String, _ cols: Int) {
+            var st: OpaquePointer?
+            guard sqlite3_prepare_v2(db, sql, -1, &st, nil) == SQLITE_OK else { out.append("ERR \(sql): \(String(cString: sqlite3_errmsg(db)))"); return }
+            defer { sqlite3_finalize(st) }
+            while sqlite3_step(st) == SQLITE_ROW {
+                var row: [String] = []
+                for i in 0..<Int32(cols) {
+                    if sqlite3_column_type(st, i) == SQLITE_BLOB {
+                        let d = Data(bytes: sqlite3_column_blob(st, i), count: Int(sqlite3_column_bytes(st, i)))
+                        if let pl = try? PropertyListSerialization.propertyList(from: d, format: nil) as? [String: Any] {
+                            let req = pl["req"] as? [String: Any] ?? [:]
+                            row.append("keys=\(pl.keys.sorted()) req=\(req.keys.sorted()) titl=\(req["titl"] ?? "-")")
+                        } else { row.append("blob \(d.count)") }
+                    } else {
+                        row.append(sqlite3_column_text(st, i).map { String(cString: $0) } ?? "nil")
+                    }
+                }
+                out.append(row.joined(separator: " | "))
+            }
+        }
+        q("SELECT name FROM sqlite_master WHERE type='table'", 1)
+        q("SELECT record.rec_id, app.identifier, record.delivered_date, record.data FROM record JOIN app ON app.app_id = record.app_id ORDER BY record.rec_id DESC LIMIT 3", 4)
+        return out.joined(separator: "\n")
     }
 
     static func openSettings() {

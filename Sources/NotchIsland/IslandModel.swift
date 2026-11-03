@@ -74,8 +74,18 @@ enum ToastTrailing {
     case usage([ClaudeUsage.Window])
 }
 
+/// Mitteilung im iPhone-Stil (Absender, erste Zeilen, gestapelt pro App)
+struct MessageInfo {
+    var bundleID: String?
+    var appName: String
+    var sender: String
+    var text: String
+    var count: Int = 1
+    var date = Date()
+}
+
 struct Toast: Identifiable, Equatable {
-    let id = UUID()
+    var id = UUID()
     var symbol: String = "bell.fill"
     var image: NSImage? = nil
     var tint: Color = .white
@@ -88,9 +98,12 @@ struct Toast: Identifiable, Equatable {
     var onDismiss: (() -> Void)? = nil
     /// Ergebnis-Datei: wird als ziehbares Dokument gezeigt
     var file: URL? = nil
+    var message: MessageInfo? = nil
 
     var large: Bool { !buttons.isEmpty || file != nil }
-    static func == (a: Toast, b: Toast) -> Bool { a.id == b.id }
+    static func == (a: Toast, b: Toast) -> Bool {
+        a.id == b.id && a.title == b.title && a.subtitle == b.subtitle && a.message?.count == b.message?.count
+    }
 }
 
 enum HUDKind: Equatable {
@@ -149,7 +162,22 @@ final class IslandModel: ObservableObject {
         return saved + IslandTab.allCases.filter { !saved.contains($0) }
     }()
 
-    var orderedTabs: [IslandTab] { tabOrder }
+    /// Ausgeblendete Tabs (Einstellungen › Tabs). „Start“ ist immer da.
+    @Published var hiddenTabs: Set<IslandTab> = Set((UserDefaults.standard.stringArray(forKey: "hiddenTabs") ?? []).compactMap(IslandTab.init(rawValue:))) {
+        didSet {
+            UserDefaults.standard.set(hiddenTabs.map(\.rawValue), forKey: "hiddenTabs")
+            if hiddenTabs.contains(tab) { tab = .home }
+        }
+    }
+
+    func isVisible(_ t: IslandTab) -> Bool { t == .home || !hiddenTabs.contains(t) }
+
+    func setVisible(_ t: IslandTab, _ on: Bool) {
+        guard t != .home else { return }
+        if on { hiddenTabs.remove(t) } else { hiddenTabs.insert(t) }
+    }
+
+    var orderedTabs: [IslandTab] { tabOrder.filter(isVisible) }
 
     func moveTab(_ from: IslandTab, to: IslandTab) {
         guard let i = tabOrder.firstIndex(of: from), let j = tabOrder.firstIndex(of: to) else { return }
@@ -207,7 +235,14 @@ final class IslandModel: ObservableObject {
                 return CGSize(width: max(notchSize.width + 330, 520), height: notchSize.height + head + 36)
             }
             return CGSize(width: n.width + 2 * wing(k), height: n.height)
-        case .toast(let t): return toastSize(large: t.large)
+        case .toast(let t):
+            if let m = t.message {
+                var h: CGFloat = 64
+                if m.text.count > 52 { h += 16 }
+                if m.count > 1 { h += m.count > 2 ? 34 : 28 }
+                return CGSize(width: max(notchSize.width + 300, 480), height: notchSize.height + h)
+            }
+            return toastSize(large: t.large)
         case .hud: return CGSize(width: n.width + 2 * 76, height: n.height)
         case .expanded:
             let s = expandedSize()
@@ -346,7 +381,7 @@ final class IslandModel: ObservableObject {
 
     func show(_ t: Toast) {
         toastWork?.cancel()
-        toast?.onDismiss?()
+        if toast?.id != t.id { toast?.onDismiss?() }
         DevBridge.log("Hinweis: \(t.title) · \(t.subtitle ?? "")")
         toast = t
         update()
@@ -426,6 +461,7 @@ final class IslandModel: ObservableObject {
 
     func expand(tab t: IslandTab? = nil) {
         if let t { tab = t } else if !isExpanded { tab = defaultTab() }
+        if !isVisible(tab) { tab = .home }
         guard !isExpanded else { return }
         isExpanded = true
         update()
