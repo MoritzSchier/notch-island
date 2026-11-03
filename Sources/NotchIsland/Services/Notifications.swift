@@ -255,26 +255,39 @@ final class NotificationDBMonitor {
         poll()
     }
 
+    private var busy = false
+    private var failures = 0
+
     private func poll() {
         guard Prefs.on(Prefs.showBanners), let path = Self.path else {
             available = false
             return
         }
+        guard !busy else { return }
+        busy = true
+        let after = lastRec
         queue.async { [weak self] in
             guard let self else { return }
-            let rows = Self.read(path: path, after: self.lastRec)
+            let rows = Self.read(path: path, after: after)
             DispatchQueue.main.async {
-                let wasAvailable = self.available
-                self.available = rows != nil
-                guard let rows else { return }
-                if !rows.isEmpty { DevBridge.log("Mitteilungs-DB: \(rows.count) neu (nach \(self.lastRec))") }
-                if self.lastRec < 0 || !wasAvailable {
-                    // Beim Start nur den Stand merken, alte Mitteilungen nicht zeigen
-                    self.lastRec = rows.map(\.rec).max() ?? max(self.lastRec, 0)
+                self.busy = false
+                guard let rows else {
+                    // Kurz gesperrt (macOS schreibt gerade eine neue Mitteilung) – einfach gleich nochmal versuchen.
+                    // Erst nach mehreren Fehlversuchen gilt die Datenbank als nicht lesbar.
+                    self.failures += 1
+                    if self.failures >= 8 { self.available = false }
                     return
                 }
-                for r in rows.sorted(by: { $0.rec < $1.rec }) {
-                    self.lastRec = max(self.lastRec, r.rec)
+                self.failures = 0
+                self.available = true
+                if !rows.isEmpty { DevBridge.log("Mitteilungs-DB: \(rows.count) neu (nach \(self.lastRec))") }
+                if self.lastRec < 0 {
+                    // Nur beim allerersten Lesen: Stand merken, alte Mitteilungen nicht zeigen
+                    self.lastRec = rows.map(\.rec).max() ?? 0
+                    return
+                }
+                for r in rows.sorted(by: { $0.rec < $1.rec }) where r.rec > self.lastRec {
+                    self.lastRec = r.rec
                     NotificationBannerMonitor.shared.deliver(bundleID: Self.properBundleID(r.app), title: r.title, subtitle: r.subtitle, body: r.body, element: nil)
                 }
             }
@@ -288,7 +301,7 @@ final class NotificationDBMonitor {
         var db: OpaquePointer?
         guard sqlite3_open_v2(path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else { sqlite3_close(db); return nil }
         defer { sqlite3_close(db) }
-        sqlite3_busy_timeout(db, 200)
+        sqlite3_busy_timeout(db, 1000)
         let sql = after < 0
             ? "SELECT record.rec_id, app.identifier, record.data FROM record JOIN app ON app.app_id = record.app_id ORDER BY record.rec_id DESC LIMIT 1"
             : "SELECT record.rec_id, app.identifier, record.data FROM record JOIN app ON app.app_id = record.app_id WHERE record.rec_id > ? ORDER BY record.rec_id LIMIT 20"
