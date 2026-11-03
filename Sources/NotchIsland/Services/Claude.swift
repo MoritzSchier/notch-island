@@ -203,7 +203,7 @@ final class ClaudeService: ObservableObject {
         let front = AppInfo.frontmost == Const.claudeBundle
         let target = t.source == .code ? (NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? Const.claudeBundle) : Const.claudeBundle
         let failed = state == .error
-        if !front && !failed { NSSound(named: "Tink")?.play() }
+        if !front && !failed && Opt.on(Opt.claudeSound) { NSSound(named: "Tink")?.play() }
         // Aktuelles Nutzungslimit gleich mit anzeigen (kurz neu laden, höchstens ~3 s warten)
         ClaudeUsage.shared.refresh {
             let usage = ClaudeUsage.shared.state == .ok ? ClaudeUsage.shared.windows : []

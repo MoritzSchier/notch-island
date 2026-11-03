@@ -194,11 +194,11 @@ struct ColorTabView: View {
             // Darstellungen
             VStack(alignment: .leading, spacing: 4) {
                 if let c = store.current {
-                    ColorFormatRow(label: "HEX", value: c.hex)
-                    ColorFormatRow(label: "RGB", value: c.rgbString)
-                    ColorFormatRow(label: "Binär", value: c.binary)
-                    ColorFormatRow(label: "HSL", value: c.hslString)
-                    ColorFormatRow(label: "SwiftUI", value: c.swiftUI)
+                    if Opt.on(Opt.colorHex) { ColorFormatRow(label: "HEX", value: c.hex) }
+                    if Opt.on(Opt.colorRGB) { ColorFormatRow(label: "RGB", value: c.rgbString) }
+                    if Opt.on(Opt.colorBin) { ColorFormatRow(label: "Binär", value: c.binary) }
+                    if Opt.on(Opt.colorHSL) { ColorFormatRow(label: "HSL", value: c.hslString) }
+                    if Opt.on(Opt.colorSwiftUI) { ColorFormatRow(label: "SwiftUI", value: c.swiftUI) }
                 } else {
                     Text("Mit der Pipette eine Farbe irgendwo auf dem Bildschirm aufnehmen – oder einen HEX-Code eingeben.")
                         .font(.system(size: 12)).foregroundStyle(Color.dim)

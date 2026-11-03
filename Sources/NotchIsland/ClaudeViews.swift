@@ -19,7 +19,7 @@ struct ClaudeTabView: View {
                 }
                 .frame(maxHeight: .infinity)
             }
-            ClaudeUsageStrip()
+            if Opt.on(Opt.claudeUsage) { ClaudeUsageStrip() }
             ClaudeFooter()
         }
     }

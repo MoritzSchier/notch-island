@@ -36,6 +36,7 @@ enum Prefs {
     static let screenMode = "screenMode"
 
     static func registerDefaults() {
+        Opt.register()
         UserDefaults.standard.register(defaults: [
             hoverToOpen: true, haptics: true, showMedia: true, showVolumeHUD: true, showBrightnessHUD: true,
             showBattery: true, showBluetooth: true, showCalendar: true, detectCalls: true, detectClaude: true,

@@ -131,6 +131,8 @@ final class ShelfStore: ObservableObject {
             items.insert(item, at: 0)
             added += 1
         }
+        let maxItems = max(10, UserDefaults.standard.integer(forKey: Opt.shelfMax))
+        if items.count > maxItems { items.removeLast(items.count - maxItems) }
         save()
         IslandModel.shared.tab = .shelf
         if added > 0 && !IslandModel.shared.isExpanded {

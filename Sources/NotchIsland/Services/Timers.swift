@@ -110,12 +110,14 @@ final class TimerService: ObservableObject {
     private func startAlarm() {
         alarm?.invalidate()
         alarmCount = 0
-        NSSound(named: "Glass")?.play()
+        let sound = UserDefaults.standard.string(forKey: Opt.timerSound) ?? "Glass"
+        let maxRings = max(1, Int(Opt.double(Opt.timerAlarmSeconds) / 1.4))
+        NSSound(named: sound)?.play()
         alarm = Timer.scheduledTimer(withTimeInterval: 1.4, repeats: true) { [weak self] t in
             guard let self else { t.invalidate(); return }
             self.alarmCount += 1
-            if self.alarmCount > 18 { self.stopAlarm(); return }
-            NSSound(named: self.alarmCount % 2 == 0 ? "Glass" : "Ping")?.play()
+            if self.alarmCount > maxRings { self.stopAlarm(); return }
+            NSSound(named: sound)?.play()
         }
     }
 

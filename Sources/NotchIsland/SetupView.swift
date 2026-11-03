@@ -28,8 +28,11 @@ struct SetupView: View {
     @State private var didInit = false
     @State private var ax = AXIsProcessTrusted()
     @State private var fullDisk = NotificationDBMonitor.path != nil
-    @State private var calendar = EKEventStore.authorizationStatus(for: .event) == .fullAccess
-    @State private var reminders = EKEventStore.authorizationStatus(for: .reminder) == .fullAccess
+    @ObservedObject private var cal = CalendarService.shared
+    @ObservedObject private var rem = RemindersService.shared
+    // Status direkt aus den Diensten – aktualisiert sich sofort nach dem „Erlauben“ (ohne Neustart)
+    private var calendar: Bool { cal.authorized || EKEventStore.authorizationStatus(for: .event) == .fullAccess }
+    private var reminders: Bool { rem.authorized || EKEventStore.authorizationStatus(for: .reminder) == .fullAccess }
     @State private var automation: [String: AutomationStatus] = [:]
     @State private var claudeConnected = SetupView.claudeIsConnected()
     @State private var claudeMessage = ""
@@ -76,6 +79,8 @@ struct SetupView: View {
             if !didInit { didInit = true; step = initialStep }
             refresh()
         }
+        // Zuletzt geöffnete Seite merken – nach einem Neustart geht es dort weiter
+        .onChange(of: step) { _, s in UserDefaults.standard.set(s.rawValue, forKey: "setupStep") }
     }
 
     private var stepDone: Bool {
@@ -96,14 +101,13 @@ struct SetupView: View {
 
     private func finish() {
         UserDefaults.standard.set(true, forKey: "setupDone")
+        UserDefaults.standard.set(0, forKey: "setupStep")
         onFinish()
     }
 
     private func refresh() {
         ax = AXIsProcessTrusted()
         fullDisk = NotificationDBMonitor.path != nil
-        calendar = EKEventStore.authorizationStatus(for: .event) == .fullAccess
-        reminders = EKEventStore.authorizationStatus(for: .reminder) == .fullAccess
         launchAtLogin = SMAppService.mainApp.status == .enabled
         if step == .media {
             for a in Self.mediaApps { automation[a.id] = Self.automationStatus(a.id, ask: false) }
@@ -319,6 +323,7 @@ struct SetupView: View {
     }
 
     static func relaunch() {
+        UserDefaults.standard.set(true, forKey: "setupResume")
         let path = Bundle.main.bundlePath
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/bash")
@@ -332,13 +337,18 @@ struct SetupView: View {
 enum SetupWindow {
     private static var window: NSWindow?
 
-    static func show() {
+    static var savedStep: SetupView.Step {
+        SetupView.Step(rawValue: UserDefaults.standard.integer(forKey: "setupStep")) ?? .welcome
+    }
+
+    static func show(at step: SetupView.Step? = nil) {
+        if let step, window != nil { close() }
         if window == nil {
             let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 560),
                              styleMask: [.titled, .closable], backing: .buffered, defer: false)
             w.title = "Notch Island einrichten"
             w.isReleasedWhenClosed = false
-            w.contentView = NSHostingView(rootView: SetupView(onFinish: { SetupWindow.close() }))
+            w.contentView = NSHostingView(rootView: SetupView(onFinish: { SetupWindow.close() }, initialStep: step ?? savedStep))
             w.center()
             window = w
         }
@@ -354,6 +364,8 @@ enum SetupWindow {
 
     /// Beim ersten Start automatisch zeigen
     static func showIfNeeded() {
-        if !UserDefaults.standard.bool(forKey: "setupDone") { show() }
+        let resume = UserDefaults.standard.bool(forKey: "setupResume")
+        UserDefaults.standard.set(false, forKey: "setupResume")
+        if resume || !UserDefaults.standard.bool(forKey: "setupDone") { show(at: savedStep) }
     }
 }

@@ -175,8 +175,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func openSettings() {
         IslandModel.shared.collapse()
         if settingsWindow == nil {
-            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 640),
-                             styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
+            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 820, height: 620),
+                             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
             w.title = "Notch Island"
             w.isReleasedWhenClosed = false
             w.contentView = NSHostingView(rootView: SettingsView())

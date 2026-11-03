@@ -520,13 +520,18 @@ final class DockBadgeMonitor: ObservableObject {
             let now = counts[b.bundleID] ?? 0
             let before = last[b.bundleID] ?? 0
             guard now > before, AppInfo.frontmost != b.bundleID else { continue }
-            // Schon als Banner mit Absender/Text gezeigt → nicht noch einmal
-            if NotificationBannerMonitor.shared.shownRecently(b.bundleID) { continue }
+            // Kann Notch Island Mitteilungen direkt lesen, ist der Zähler überflüssig („7 neue Mitteilungen“ doppelt)
+            if NotificationDBMonitor.shared.available && Prefs.on(Prefs.showBanners) { continue }
+            if Opt.mutedApps.contains(b.bundleID) { continue }
             let diff = now - before
-            IslandModel.shared.show(Toast(image: AppInfo.icon(b.bundleID), tint: .red, title: b.name,
-                                          subtitle: diff == 1 ? "Neue Mitteilung" : "\(diff) neue Mitteilungen",
-                                          trailing: .text(b.label), duration: 4,
-                                          onTap: { AppInfo.activate(b.bundleID) }))
+            // Kurz warten: kommt in der Zeit die eigentliche Mitteilung (Banner), entfällt der Zähler-Hinweis
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                if NotificationBannerMonitor.shared.shownRecently(b.bundleID, within: 25) { return }
+                IslandModel.shared.show(Toast(image: AppInfo.icon(b.bundleID), tint: .red, title: b.name,
+                                              subtitle: diff == 1 ? "Neue Mitteilung" : "\(diff) neue Mitteilungen",
+                                              trailing: .text(b.label), duration: 4,
+                                              onTap: { AppInfo.activate(b.bundleID) }))
+            }
         }
     }
 }

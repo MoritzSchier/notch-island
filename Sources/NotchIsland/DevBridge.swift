@@ -200,6 +200,24 @@ enum DevBridge {
                 }
             }
         case "settings": (NSApp.delegate as? AppDelegate)?.openSettings()
+        case "selfax":
+            let txt = AXDump.tree(AXUIElementCreateApplication(ProcessInfo.processInfo.processIdentifier), maxNodes: 600)
+            try? txt.write(to: dir.appendingPathComponent("selfax.txt"), atomically: true, encoding: .utf8)
+            log("selfax.txt")
+        case "settingssnap":
+            // settingssnap <seite> – Einstellungen öffnen und Fenster als settings_<seite>.png speichern
+            let pg = parts.count > 1 ? Int(parts[1]) ?? 0 : 0
+            UserDefaults.standard.set(pg, forKey: "settingsPage")
+            (NSApp.delegate as? AppDelegate)?.openSettings()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                guard let w = NSApp.windows.first(where: { $0.isVisible && $0.styleMask.contains(.titled) && $0.frame.width > 700 }), let v = w.contentView?.superview ?? w.contentView,
+                      let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds) else { return }
+                v.cacheDisplay(in: v.bounds, to: rep)
+                if let png = rep.representation(using: .png, properties: [:]) {
+                    try? png.write(to: dir.appendingPathComponent("settings_\(pg).png"))
+                    log("settings_\(pg).png")
+                }
+            }
         case "notedb": log("DB:\n" + NotificationDBMonitor.debugDescription())
         case "testnotify":
             // Test-Mitteilung über osascript (erscheint als „Skripteditor“)

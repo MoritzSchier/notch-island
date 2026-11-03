@@ -178,6 +178,7 @@ final class IslandModel: ObservableObject {
     }
 
     var orderedTabs: [IslandTab] { tabOrder.filter(isVisible) }
+    var orderedTabsAll: [IslandTab] { tabOrder }
 
     func moveTab(_ from: IslandTab, to: IslandTab) {
         guard let i = tabOrder.firstIndex(of: from), let j = tabOrder.firstIndex(of: to) else { return }
@@ -259,7 +260,9 @@ final class IslandModel: ObservableObject {
         case .home: return CGSize(width: n.width + 530, height: n.height + 104)
         case .shelf: return CGSize(width: big, height: 196)
         case .timer: return CGSize(width: big, height: 210)
-        case .claude: return ClaudeService.shared.current != nil ? CGSize(width: max(700, n.width + 480), height: 318) : CGSize(width: big, height: 282)
+        case .claude:
+            let strip: CGFloat = Opt.on(Opt.claudeUsage) ? 0 : 48
+            return ClaudeService.shared.current != nil ? CGSize(width: max(700, n.width + 480), height: 318 - strip) : CGSize(width: big, height: 282 - strip)
         case .web: return CGSize(width: big, height: WebFavorites.shared.rows > 1 ? 206 : 150)
         case .colors: return CGSize(width: max(680, n.width + 460), height: 214)
         case .audio: return CGSize(width: big, height: 206)
@@ -451,7 +454,7 @@ final class IslandModel: ObservableObject {
             if case .toast(let t) = presentation, t.file != nil || !t.buttons.isEmpty { return }
             let w = DispatchWorkItem { [weak self] in self?.expand() }
             hoverWork = w
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.16, execute: w)
+            DispatchQueue.main.asyncAfter(deadline: .now() + max(0, Opt.double(Opt.hoverDelay)), execute: w)
         } else if isExpanded && !isHeld && !dropMode {
             let w = DispatchWorkItem { [weak self] in self?.collapse() }
             hoverWork = w

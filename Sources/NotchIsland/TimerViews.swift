@@ -4,7 +4,8 @@ struct TimerTabView: View {
     @ObservedObject var ts = TimerService.shared
     @State private var customMinutes = 10
 
-    private let presets: [Int] = [1, 3, 5, 10, 15, 25, 45, 60]
+    @AppStorage(Opt.timerPresets) private var presetsRaw = "1,3,5,10,15,25,45,60"
+    private var presets: [Int] { _ = presetsRaw; return Opt.timerPresetMinutes }
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {

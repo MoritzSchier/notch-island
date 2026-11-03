@@ -34,10 +34,47 @@ struct SettingsView: View {
     @State private var folders = Prefs.folders
     @State private var claudeMessage: String?
 
+    @AppStorage("settingsPage") private var page = 0
     private let refresh = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        TabView {
+        NavigationSplitView {
+            List(selection: Binding(get: { Optional(page) }, set: { if let v = $0 { page = v } })) {
+                ForEach(Array(Self.pages.enumerated()), id: \.offset) { i, p in
+                    Label(p.0, systemImage: p.1).tag(i)
+                }
+            }
+            .navigationSplitViewColumnWidth(min: 170, ideal: 190, max: 230)
+        } detail: {
+            Group {
+                switch page {
+                case 0: page0
+                case 1: page1
+                case 2: page6
+                case 3: page2
+                case 4: page3
+                case 5: page4
+                case 6: page5
+                default: page0
+                }
+            }
+            .navigationTitle(Self.pages[min(page, Self.pages.count - 1)].0)
+        }
+        .frame(minWidth: 760, minHeight: 560)
+        .onReceive(refresh) { _ in axTrusted = AXIsProcessTrusted(); fullDisk = NotificationDBMonitor.path != nil }
+    }
+
+    static let pages: [(String, String)] = [
+        ("Allgemein", "gearshape"),
+        ("Tabs", "square.grid.2x2"),
+        ("Mitteilungen", "message.badge"),
+        ("Aktivitäten", "bell.badge"),
+        ("Claude", "sparkle"),
+        ("Berechtigungen", "lock.shield"),
+        ("Update", "arrow.down.circle")
+    ]
+
+    @ViewBuilder private var page0: some View {
             Form {
             Section("Allgemein") {
                 Toggle("Öffnen, wenn die Maus auf die Notch zeigt", isOn: $hoverToOpen)
@@ -84,24 +121,13 @@ struct SettingsView: View {
         
             }
             .formStyle(.grouped)
-            .tabItem { Label("Allgemein", systemImage: "gearshape") }
+    }
 
-            Form {
-            Section("Welche Tabs zeigt die Insel?") {
-                ForEach(IslandTab.allCases) { t in
-                    Toggle(isOn: Binding(get: { model.isVisible(t) }, set: { model.setVisible(t, $0) })) {
-                        Label(t.title, systemImage: t.icon)
-                    }
-                    .disabled(t == .home)
-                }
-                Text("„Start“ ist immer da. Die Reihenfolge änderst du direkt in der Insel per Drag & Drop.")
-                    .font(.caption).foregroundStyle(.secondary)
-                Button("Reihenfolge zurücksetzen") { IslandModel.shared.resetTabOrder() }
-            }
-            }
-            .formStyle(.grouped)
-            .tabItem { Label("Tabs", systemImage: "square.grid.2x2") }
+    @ViewBuilder private var page1: some View { TabOptionsView() }
 
+    @ViewBuilder private var page6: some View { NotificationOptionsView() }
+
+    @ViewBuilder private var page2: some View {
             Form {
             Section("Live-Aktivitäten") {
                 Toggle("Musik & Videos (Spotify, Musik, YouTube in Chrome)", isOn: $showMedia)
@@ -111,8 +137,6 @@ struct SettingsView: View {
                 Toggle("Fällige Erinnerungen (Apple Erinnerungen)", isOn: $showReminders)
                 Toggle("Downloads", isOn: $showDownloads)
                 Toggle("Mikrofon- & Kamera-Anzeige", isOn: $showPrivacy)
-                Toggle("Mitteilungen mit Absender & Text (WhatsApp, Mail, Chrome …)", isOn: $showBanners)
-                Toggle("Neue Mitteilungen (Dock-Badges, falls kein Banner kam)", isOn: $showBadges)
                 Toggle("Laden, Akku schwach", isOn: $showBattery)
                 Toggle("Bluetooth-Geräte (AirPods …)", isOn: $showBluetooth)
             }
@@ -138,8 +162,9 @@ struct SettingsView: View {
             }
             }
             .formStyle(.grouped)
-            .tabItem { Label("Aktivitäten", systemImage: "bell.badge") }
+    }
 
+    @ViewBuilder private var page3: some View {
             Form {
             Section("Claude") {
                 Picker("Claude als Haupt-Tab", selection: $claudePrimary) {
@@ -158,8 +183,9 @@ struct SettingsView: View {
             }
             }
             .formStyle(.grouped)
-            .tabItem { Label("Claude", systemImage: "sparkle") }
+    }
 
+    @ViewBuilder private var page4: some View {
             Form {
             Section("Berechtigungen") {
                 HStack {
@@ -193,12 +219,13 @@ struct SettingsView: View {
             }
 
             Section {
-                Button("Einrichtungsassistent öffnen …") { SetupWindow.show() }
+                Button("Einrichtungsassistent öffnen …") { SetupWindow.show(at: .welcome) }
             }
             }
             .formStyle(.grouped)
-            .tabItem { Label("Berechtigungen", systemImage: "lock.shield") }
+    }
 
+    @ViewBuilder private var page5: some View {
             Form {
             Section("Updates") {
                 HStack {
@@ -230,10 +257,6 @@ struct SettingsView: View {
             }
             }
             .formStyle(.grouped)
-            .tabItem { Label("Update", systemImage: "arrow.down.circle") }
-        }
-        .frame(minWidth: 600, minHeight: 600)
-        .onReceive(refresh) { _ in axTrusted = AXIsProcessTrusted(); fullDisk = NotificationDBMonitor.path != nil }
     }
 
     private var mcpPath: String { Bundle.main.bundlePath + "/Contents/MacOS/notch-mcp" }

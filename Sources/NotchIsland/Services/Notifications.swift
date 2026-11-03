@@ -68,7 +68,11 @@ final class NotificationBannerMonitor {
         guard seen[key] == nil else { return }
         seen[key] = now
         if let id = bundleID, id == Const.bundleID || AppInfo.frontmost == id { return }
-        if let id = bundleID { recentApps[id] = now }
+        if let id = bundleID {
+            recentApps[id] = now
+            Opt.noteSeenApp(id)
+            if Opt.mutedApps.contains(id) { return }
+        }
         let name = appName ?? bundleID.map { AppInfo.name($0) } ?? "Mitteilung"
         var sender = rawTitle.isEmpty ? name : rawTitle
         var msg = text
@@ -83,9 +87,11 @@ final class NotificationBannerMonitor {
             if let bundleID { AppInfo.activate(bundleID) }
         }
         // Wie am iPhone: weitere Mitteilungen derselben App stapeln sich auf der aktuellen
+        if !Opt.on(Opt.notePreview) { msg = "" }
         var info = MessageInfo(bundleID: bundleID, appName: name, sender: String(sender.prefix(60)), text: String(msg.prefix(220)))
-        var toast = Toast(symbol: "bell.badge.fill", tint: .red, title: info.sender, subtitle: msg, duration: 6, onTap: tap)
-        if let cur = model.toast, let m = cur.message, m.bundleID == bundleID {
+        var toast = Toast(symbol: "bell.badge.fill", tint: .red, title: info.sender, subtitle: msg,
+                          duration: max(3, Opt.double(Opt.noteDuration)), onTap: tap)
+        if Opt.on(Opt.noteStack), let cur = model.toast, let m = cur.message, m.bundleID == bundleID {
             info.count = m.count + 1
             toast.id = cur.id
         }

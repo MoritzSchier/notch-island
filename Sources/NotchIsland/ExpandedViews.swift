@@ -130,18 +130,30 @@ struct TabButton: View {
 
 struct HomeView: View {
     @ObservedObject var calls = CallMonitor.shared
+    @AppStorage(Opt.homeMedia) private var showMediaCard = true
+    @AppStorage(Opt.homeVolume) private var showVolume = true
+    @AppStorage(Opt.homeUpNext) private var showUpNext = true
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            VStack(spacing: 9) {
-                MiniMediaCard()
-                VolumeRow()
+            if showMediaCard || showVolume {
+                VStack(spacing: 9) {
+                    if showMediaCard { MiniMediaCard() }
+                    if showVolume { VolumeRow() }
+                }
+                .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: .infinity)
-            Group {
-                if calls.active != nil { CallCard() } else { UpNextCard() }
+            if calls.active != nil || showUpNext {
+                Group {
+                    if calls.active != nil { CallCard() } else { UpNextCard() }
+                }
+                .frame(width: showMediaCard || showVolume ? 212 : nil)
+                .frame(maxWidth: showMediaCard || showVolume ? nil : .infinity)
             }
-            .frame(width: 212)
+            if !showMediaCard && !showVolume && !showUpNext && calls.active == nil {
+                Text("Alles ausgeblendet – Einstellungen › Tabs › Start").font(.system(size: 12)).foregroundStyle(Color.dim)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
     }
 }

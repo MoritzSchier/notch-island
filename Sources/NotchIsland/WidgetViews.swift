@@ -45,7 +45,8 @@ struct SystemWidget: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            BatteryDetailCard().frame(width: 250)
+            if Opt.on(Opt.sysBattery) { BatteryDetailCard().frame(width: 250) }
+            if Opt.on(Opt.sysBluetooth) {
             Card {
                 VStack(alignment: .leading, spacing: 6) {
                     SectionLabel(text: "Bluetooth")
@@ -65,6 +66,8 @@ struct SystemWidget: View {
                 }
             }
             .frame(width: 170)
+            }
+            if Opt.on(Opt.sysSliders) {
             Card {
                 VStack(alignment: .leading, spacing: 9) {
                     HStack(spacing: 8) {
@@ -83,6 +86,7 @@ struct SystemWidget: View {
                         Spacer(minLength: 0)
                     }
                 }
+            }
             }
         }
     }
