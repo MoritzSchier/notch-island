@@ -41,28 +41,42 @@ struct SettingsView: View {
     private let refresh = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        NavigationSplitView {
-            List(selection: Binding(get: { Optional(page) }, set: { if let v = $0 { page = v } })) {
+        // Eigene Seitenleiste statt NavigationSplitView: NavigationSplitView in einem selbst erzeugten
+        // NSWindow (Accessory-App) bleibt auf neueren macOS-Versionen komplett leer.
+        let current = min(max(page, 0), Self.pages.count - 1)
+        HStack(spacing: 0) {
+            List(selection: Binding(get: { Optional(current) }, set: { if let v = $0 { page = v } })) {
                 ForEach(Array(Self.pages.enumerated()), id: \.offset) { i, p in
                     Label(p.0, systemImage: p.1).tag(i)
                 }
-                .id(language)
             }
-            .navigationSplitViewColumnWidth(min: 170, ideal: 190, max: 230)
-        } detail: {
-            Group {
-                switch page {
-                case 0: page0
-                case 1: page1
-                case 2: page6
-                case 3: page2
-                case 4: page3
-                case 5: page4
-                case 6: page5
-                default: page0
+            .listStyle(.sidebar)
+            .frame(width: 200)
+            .id(language)
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 0) {
+                Text(Self.pages[current].0)
+                    .font(.title2.bold())
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+                    .padding(.bottom, 4)
+                Group {
+                    switch current {
+                    case 0: page0
+                    case 1: page1
+                    case 2: page6
+                    case 3: page2
+                    case 4: page3
+                    case 5: page4
+                    case 6: page5
+                    default: page0
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
-            .navigationTitle(Self.pages[min(page, Self.pages.count - 1)].0)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .id(language)
         }
         .frame(minWidth: 760, minHeight: 560)
