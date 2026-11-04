@@ -81,16 +81,24 @@ extension ClaudeService {
     func prompt(for r: CodeRequest) -> PermissionPrompt {
         switch r.kind {
         case .permission:
-            var options: [PermissionPrompt.Option] = [.init(id: 0, label: tr("Ablehnen"), role: .deny),
-                                                      .init(id: 1, label: tr("Erlauben"), role: .allow)]
-            if r.canAlways { options.append(.init(id: 2, label: tr("Immer erlauben"), role: .always)) }
-            options.append(.init(id: 3, label: tr("Im Terminal"), role: .other))
             let what = r.detail.isEmpty ? r.tool : "\(r.tool): \(r.detail)"
+            // Erlauben nur, wenn die Notch den Befehl vollständig zeigt – sonst könnte hinter einem harmlosen
+            // Anfang (abgeschnitten, Zeilenumbruch, unsichtbare Zeichen) etwas anderes stehen.
+            let visible = Self.fullyVisible(what)
+            var options: [PermissionPrompt.Option] = [.init(id: 0, label: tr("Ablehnen"), role: .deny)]
+            if visible {
+                options.append(.init(id: 1, label: tr("Erlauben"), role: .allow))
+                if r.canAlways { options.append(.init(id: 2, label: tr("Immer erlauben"), role: .always)) }
+            }
+            options.append(.init(id: 3, label: tr("Im Terminal"), role: .other))
             var info = r.description
-            if r.canAlways, !r.ruleText.isEmpty {
+            if !visible {
+                info = tr("Zu lang oder mehrzeilig für die Notch – bitte im Terminal prüfen")
+            } else if r.canAlways, !r.ruleText.isEmpty {
                 info = (info.isEmpty ? "" : info + " · ") + tr("Immer gilt für ") + r.ruleText
             }
-            return PermissionPrompt(key: "ext|" + r.id, title: String(what.prefix(160)), detail: String(info.prefix(200)),
+            let title = visible ? what : String(Self.printable(what).prefix(Self.maxVisible)) + " …"
+            return PermissionPrompt(key: "ext|" + r.id, title: title, detail: String(info.prefix(200)),
                                     options: options, sessionId: r.sessionId, source: r.source)
         case .question:
             let q = r.questions[min(r.index, r.questions.count - 1)]
@@ -217,6 +225,27 @@ extension ClaudeService {
         if let s = SessionStore.shared.sessions.first(where: { $0.sessionId == sessionId }) { return s.displayName }
         let name = (cwd as NSString).lastPathComponent
         return name.isEmpty ? "Claude Code" : name
+    }
+
+    /// So viele Zeichen passen sicher in die zwei Zeilen der Anfrage (die Schrift wird notfalls verkleinert).
+    static let maxVisible = 100
+
+    /// Zeigt die Notch diesen Text vollständig und unverfälscht? Kurz, einzeilig, keine Steuer-/Formatzeichen
+    /// (z. B. Rechts-nach-links-Umschaltung, die den sichtbaren Text umdreht).
+    static func fullyVisible(_ s: String) -> Bool {
+        s.count <= maxVisible && !s.unicodeScalars.contains(where: isHidden)
+    }
+
+    /// Unsichtbare oder umbrechende Zeichen durch Leerzeichen ersetzen – nur für die Anzeige.
+    static func printable(_ s: String) -> String {
+        String(String.UnicodeScalarView(s.unicodeScalars.map { isHidden($0) ? " " : $0 }))
+    }
+
+    private static func isHidden(_ c: Unicode.Scalar) -> Bool {
+        switch c.properties.generalCategory {
+        case .control, .format, .lineSeparator, .paragraphSeparator, .privateUse, .surrogate, .unassigned: return true
+        default: return false
+        }
     }
 
     /// „Bash(npm test:*)“ bzw. „Modus acceptEdits“ – was „Immer erlauben“ tatsächlich speichert.

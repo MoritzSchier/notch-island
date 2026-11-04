@@ -426,7 +426,8 @@ struct PermissionView: View {
                                         .foregroundStyle(Color.dim)
                                 }
                             }
-                            Text(p.title).font(.system(size: 13.5, weight: .semibold)).lineLimit(2)
+                            // Lieber kleiner als abgeschnitten: bei Freigaben muss der ganze Befehl lesbar sein
+                            Text(p.title).font(.system(size: 13.5, weight: .semibold)).lineLimit(2).minimumScaleFactor(0.6)
                             if !p.detail.isEmpty {
                                 Text(p.detail).font(.system(size: 11.5)).foregroundStyle(Color.dim).lineLimit(2)
                             }

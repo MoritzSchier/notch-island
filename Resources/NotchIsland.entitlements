@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Gehärtete Laufzeit: Nur diese Zugriffe sind erlaubt. Ohne die gehärtete Laufzeit könnte ein anderes
+     Programm per DYLD_INSERT_LIBRARIES eigenen Code in die App laden und ihre Freigaben mitbenutzen. -->
+<plist version="1.0">
+<dict>
+    <!-- Spotify, Musik, Chrome, Safari per AppleScript -->
+    <key>com.apple.security.automation.apple-events</key><true/>
+    <!-- Spiegel-Tab -->
+    <key>com.apple.security.device.camera</key><true/>
+    <!-- Nächster Termin und Erinnerungen -->
+    <key>com.apple.security.personal-information.calendars</key><true/>
+</dict>
+</plist>

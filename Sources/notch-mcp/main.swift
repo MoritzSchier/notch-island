@@ -165,12 +165,16 @@ if args.contains("--hook"), args.contains("permission") {
     // Rückfragen und Plan-Freigaben haben eigene Dialoge im Terminal
     if tool == "AskUserQuestion" || tool == "ExitPlanMode" { exit(0) }
     let ti = input["tool_input"] as? [String: Any] ?? [:]
+    // Immer die echte Eingabe zeigen (nie Claudes eigene Beschreibung): bekannte Felder, sonst die Eingabe als JSON.
+    // Ungekürzt weitergeben – die App entscheidet, ob alles sichtbar ist (sonst nur „Im Terminal“).
     let what = (ti["command"] as? String) ?? (ti["file_path"] as? String) ?? (ti["url"] as? String)
-        ?? (ti["pattern"] as? String) ?? (ti["description"] as? String) ?? ""
+        ?? (ti["pattern"] as? String)
+        ?? (ti.isEmpty ? "" : (try? JSONSerialization.data(withJSONObject: ti, options: [.sortedKeys, .withoutEscapingSlashes]))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "")
     let suggestions = (input["permission_suggestions"] as? [[String: Any]] ?? []).filter {
         ($0["type"] as? String) != "setMode" || ($0["mode"] as? String) != "bypassPermissions"
     }
-    let req: [String: Any] = ["tool": tool, "detail": String(what.prefix(400)),
+    let req: [String: Any] = ["tool": tool, "detail": String(what.prefix(4000)),
                               "description": ti["description"] as? String ?? "",
                               "sessionId": input["session_id"] as? String ?? "",
                               "cwd": input["cwd"] as? String ?? "",

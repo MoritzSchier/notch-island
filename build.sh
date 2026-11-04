@@ -10,6 +10,7 @@
 # Optionale Einstellungen in einer Datei "local.env" (wird nicht mit hochgeladen), z. B.:
 #   BUNDLE_ID=com.deinname.notchisland
 #   INSTALL_DIR="/Applications"
+#   SIGN_IDENTITY="Developer ID Application: …"   (Standard: eigenes Zertifikat, siehe unten)
 set -uo pipefail
 cd "$(dirname "$0")"
 
@@ -17,6 +18,12 @@ VERSION="1.1.0"
 BUNDLE_ID="io.github.notchisland"
 GITHUB_REPO=""          # z. B. "deinname/notch-island" – dort sucht die App nach Updates
 INSTALL_DIR="$HOME/Applications"
+# Signatur-Zertifikat. Fehlt es, legt build.sh einmalig ein selbstsigniertes im Anmelde-Schlüsselbund an.
+# Die Freigaben (Bedienungshilfen …) hängen dann am Zertifikat statt nur am Namen der App –
+# ein anderes Programm kann sie sich nicht mehr erschleichen, indem es sich genauso nennt.
+# Wichtig für Releases: Updates werden nur installiert, wenn sie mit DEMSELBEN Zertifikat signiert sind.
+# Also das Zertifikat sichern (Schlüsselbundverwaltung › Meine Zertifikate › exportieren).
+SIGN_IDENTITY="Notch Island Code Signing"
 [ -f local.env ] && source ./local.env   # darf auch UNIVERSAL=1 / PACKAGE=1 setzen
 # Update-Quelle automatisch aus dem Git-Remote ableiten (github.com/<besitzer>/<repo>)
 if [ -z "$GITHUB_REPO" ] && command -v git >/dev/null 2>&1; then
@@ -76,14 +83,34 @@ STAMP=".build/.installed"
 
 # Unverändert? Dann nur neu starten – so bleiben Signatur und Freigaben gleich.
 if [ $PACKAGE = 0 ] && [ -f "$APP/Contents/MacOS/NotchIsland" ] && cmp -s "$BIN/NotchIsland" "$STAMP" \
-   && [ "$PLIST" = "$(cat "$APP/Contents/Info.plist" 2>/dev/null)" ]; then
+   && [ "$PLIST" = "$(cat "$APP/Contents/Info.plist" 2>/dev/null)" ] \
+   && codesign -d -r- "$APP" 2>&1 | grep -q 'certificate'; then
   pkill -x NotchIsland 2>/dev/null || true; sleep 0.5
   open "$APP"; sleep 2
   pgrep -x NotchIsland >/dev/null && say "✓ Notch Island läuft (unverändert, nur neu gestartet)"
   echo "== FERTIG ==" >> "$LOG"; exit 0
 fi
 
-# App-Paket zusammenstellen und ad-hoc signieren:  make_app <Ziel.app> <Bundle-ID>
+# Signatur-Zertifikat sicherstellen (einmalig anlegen, falls es noch keins gibt)
+ensure_identity() {
+  security find-identity -p codesigning 2>/dev/null | grep -qF "\"$SIGN_IDENTITY\"" && return 0
+  [ "$SIGN_IDENTITY" = "Notch Island Code Signing" ] || fail "Signatur-Zertifikat „$SIGN_IDENTITY“ nicht im Schlüsselbund gefunden"
+  say "→ Lege einmalig das Signatur-Zertifikat „$SIGN_IDENTITY“ im Schlüsselbund an …"
+  local T rc
+  T="$(mktemp -d)"
+  # /usr/bin/openssl (LibreSSL): dessen PKCS#12-Format kann „security“ importieren, das von OpenSSL 3 nicht
+  /usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -days 7300 -subj "/CN=$SIGN_IDENTITY" \
+      -keyout "$T/key.pem" -out "$T/cert.pem" \
+      -addext "basicConstraints=critical,CA:false" -addext "keyUsage=critical,digitalSignature" \
+      -addext "extendedKeyUsage=critical,codeSigning" >>"$LOG" 2>&1 \
+    && /usr/bin/openssl pkcs12 -export -inkey "$T/key.pem" -in "$T/cert.pem" -out "$T/id.p12" -passout pass:notch >>"$LOG" 2>&1 \
+    && security import "$T/id.p12" -k "$HOME/Library/Keychains/login.keychain-db" -P notch -T /usr/bin/codesign >>"$LOG" 2>&1
+  rc=$?
+  rm -rf "$T"
+  [ $rc = 0 ] || fail "Signatur-Zertifikat konnte nicht angelegt werden (Details: build.log)"
+}
+
+# App-Paket zusammenstellen und mit dem Zertifikat signieren:  make_app <Ziel.app> <Bundle-ID>
 make_app() {
   local A="$1" ID="$2"
   rm -rf "$A"
@@ -94,10 +121,16 @@ make_app() {
   sed -e "s/__BUNDLE_ID__/$ID/g" -e "s/__VERSION__/$VERSION/g" -e "s#__REPO__#$GITHUB_REPO#g" Resources/Info.plist > "$A/Contents/Info.plist"
   iconutil -c icns Resources/AppIcon.iconset -o "$A/Contents/Resources/AppIcon.icns" >>"$LOG" 2>&1 || true
   xattr -cr "$A" 2>/dev/null || true
-  # Feste Anforderung "identifier" → Freigaben (Bedienungshilfen usw.) bleiben nach Updates erhalten
-  codesign --force --sign - --identifier "$ID.mcp" -r="designated => identifier \"$ID.mcp\"" "$A/Contents/MacOS/notch-mcp" >>"$LOG" 2>&1
-  codesign --force --sign - --identifier "$ID" -r="designated => identifier \"$ID\"" "$A" >>"$LOG" 2>&1 || fail "Signieren fehlgeschlagen"
+  # Mit Zertifikat und gehärteter Laufzeit signieren. Die Anforderung lautet dann
+  # „identifier … and certificate leaf = H"…"“ – Freigaben bleiben über Updates erhalten,
+  # gelten aber nur für Programme mit diesem Zertifikat.
+  codesign --force --sign "$SIGN_IDENTITY" --identifier "$ID.mcp" --options runtime \
+      "$A/Contents/MacOS/notch-mcp" >>"$LOG" 2>&1 || fail "Signieren fehlgeschlagen (notch-mcp)"
+  codesign --force --sign "$SIGN_IDENTITY" --identifier "$ID" --options runtime \
+      --entitlements Resources/NotchIsland.entitlements "$A" >>"$LOG" 2>&1 || fail "Signieren fehlgeschlagen"
+  codesign --verify --strict --deep "$A" >>"$LOG" 2>&1 || fail "Signatur ungültig"
 }
+ensure_identity
 
 if [ $PACKAGE = 1 ]; then
   # Veröffentlichungs-Paket immer mit der neutralen Standard-ID (unabhängig von local.env)
@@ -127,11 +160,23 @@ if [ $PACKAGE = 1 ]; then
   fi
 fi
 
+# War die bisherige App nur ad-hoc signiert („identifier …“ allein), gelten ihre Freigaben für jedes Programm
+# mit diesem Namen. Die alten Einträge passen auch zur neuen App – also einmal zurücksetzen und neu erteilen.
+OLD_ADHOC=0
+if [ -d "$APP" ] && ! codesign -d -r- "$APP" 2>&1 | grep -q 'certificate'; then OLD_ADHOC=1; fi
+
 pkill -x NotchIsland 2>/dev/null || true
 sleep 0.3
 make_app "$APP" "$BUNDLE_ID"
 cp "$BIN/NotchIsland" "$STAMP"
 say "✓ Installiert: $APP"
+
+if [ $OLD_ADHOC = 1 ]; then
+  tccutil reset All "$BUNDLE_ID" >>"$LOG" 2>&1 || true
+  defaults write "$BUNDLE_ID" setupDone -bool false
+  say "! Die App ist jetzt mit Zertifikat signiert. Die alten Freigaben wurden zurückgesetzt –"
+  say "  der Einrichtungsassistent fragt sie gleich noch einmal ab."
+fi
 
 # Claude wird im Einrichtungsassistenten (erster Start) verbunden – nicht automatisch.
 

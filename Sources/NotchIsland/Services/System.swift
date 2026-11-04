@@ -357,7 +357,9 @@ final class CalendarService: ObservableObject {
         guard let det = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return nil }
         for t in texts {
             for m in det.matches(in: t, range: NSRange(t.startIndex..., in: t)) {
-                if let u = m.url, let h = u.host, hosts.contains(where: { h.contains($0) }) { return u }
+                // Nur https und nur die Domain selbst oder ihre Subdomains – nicht „zoom.us.angreifer.de“ oder smb://
+                guard let u = m.url, u.scheme?.lowercased() == "https", let h = u.host?.lowercased() else { continue }
+                if hosts.contains(where: { h == $0 || h.hasSuffix("." + $0) }) { return u }
             }
         }
         return nil

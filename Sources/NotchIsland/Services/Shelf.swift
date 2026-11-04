@@ -405,8 +405,9 @@ enum FileOps {
                 let parent = first.deletingLastPathComponent()
                 p.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
                 p.currentDirectoryURL = parent
+                // Relative Namen mit "./" beginnen: eine Datei namens "-TT=…" darf zip nicht als Option lesen
                 p.arguments = ["-r", "-q", "-y", dest.path] + urls.map { u in
-                    u.path.hasPrefix(parent.path + "/") ? String(u.path.dropFirst(parent.path.count + 1)) : u.path
+                    u.path.hasPrefix(parent.path + "/") ? "./" + String(u.path.dropFirst(parent.path.count + 1)) : u.path
                 }
             }
             var success = false

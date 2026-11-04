@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 /// Prüft auf GitHub, ob es eine neuere Version gibt (Releases), und installiert sie auf Wunsch:
-/// ZIP laden → entpacken → mit derselben Kennung signieren (Freigaben bleiben) → App austauschen → neu starten.
+/// ZIP laden → entpacken → Signatur prüfen (muss dasselbe Zertifikat wie diese App haben) → App austauschen → neu starten.
 final class Updater: ObservableObject {
     static let shared = Updater()
 
@@ -88,7 +88,8 @@ final class Updater: ObservableObject {
                           let s = a["browser_download_url"] as? String, let u = URL(string: s), Self.isTrustedDownload(u) else { return nil }
                     return u
                 }.first
-                let page = URL(string: obj["html_url"] as? String ?? "") ?? URL(string: "https://github.com/\(repo)/releases")!
+                let page = URL(string: obj["html_url"] as? String ?? "").flatMap { Self.isTrustedDownload($0) ? $0 : nil }
+                    ?? URL(string: "https://github.com/\(repo)/releases")!
                 if Self.isNewer(tag, than: self.currentVersion), let zip {
                     let r = Release(version: tag, notes: String((obj["body"] as? String ?? "").prefix(400)), zipURL: zip, pageURL: page)
                     self.state = .available(r)
@@ -125,6 +126,13 @@ final class Updater: ObservableObject {
 
     func install() {
         guard let r = available else { return }
+        // Ohne Zertifikat (ad-hoc signiert) lässt sich nicht prüfen, ob ein Update echt ist → von Hand installieren
+        guard Self.ownRequirement() != nil else {
+            NSWorkspace.shared.open(r.pageURL)
+            IslandModel.shared.show(Toast(symbol: "arrow.down.circle", tint: .orange, title: tr("Bitte von Hand aktualisieren"),
+                                          subtitle: tr("Diese Version kann Updates nicht auf Echtheit prüfen"), duration: 6))
+            return
+        }
         state = .downloading
         IslandModel.shared.show(Toast(symbol: "arrow.down.circle", tint: .blue, title: tr("Update wird geladen …"), subtitle: r.version, duration: 4))
         URLSession.shared.downloadTask(with: r.zipURL) { [weak self] tmp, resp, err in
@@ -142,6 +150,29 @@ final class Updater: ObservableObject {
             DispatchQueue.main.async { self.state = .installing }
             DispatchQueue.global(qos: .userInitiated).async { self.prepareAndSwap(zip: zip, work: work) }
         }.resume()
+    }
+
+    /// Signatur-Anforderung dieser App – nur, wenn sie an ein Zertifikat gebunden ist.
+    /// Ad-hoc-Signaturen („identifier …“ allein) kann jedes Programm nachmachen; damit ist nichts prüfbar.
+    static func ownRequirement() -> SecRequirement? {
+        var me: SecCode?
+        var stat: SecStaticCode?
+        var req: SecRequirement?
+        var text: CFString?
+        guard SecCodeCopySelf([], &me) == errSecSuccess, let me,
+              SecCodeCopyStaticCode(me, [], &stat) == errSecSuccess, let stat,
+              SecCodeCopyDesignatedRequirement(stat, [], &req) == errSecSuccess, let req,
+              SecRequirementCopyString(req, [], &text) == errSecSuccess,
+              let s = text as String?, s.contains("certificate") else { return nil }
+        return req
+    }
+
+    /// Ist die App gültig signiert (alle Architekturen, eingebettete Programme) und erfüllt sie `req`?
+    static func satisfies(_ app: URL, _ req: SecRequirement) -> Bool {
+        var code: SecStaticCode?
+        guard SecStaticCodeCreateWithPath(app as CFURL, [], &code) == errSecSuccess, let code else { return false }
+        let flags = SecCSFlags(rawValue: kSecCSCheckAllArchitectures | kSecCSCheckNestedCode | kSecCSStrictValidate)
+        return SecStaticCodeCheckValidity(code, flags, req) == errSecSuccess
     }
 
     private func run(_ path: String, _ args: [String]) -> Bool {
@@ -167,20 +198,14 @@ final class Updater: ObservableObject {
             DispatchQueue.main.async { self.fail(tr("Update-Datei ist ungültig oder nicht neuer")) }
             return
         }
-        // Gleiche Kennung wie die installierte App → Freigaben (Bedienungshilfen …) bleiben erhalten
-        let id = Bundle.main.bundleIdentifier ?? "io.github.notchisland"
-        _ = run("/usr/libexec/PlistBuddy", ["-c", "Set :CFBundleIdentifier \(id)", newApp.appendingPathComponent("Contents/Info.plist").path])
-        let repo = repository
-        if Self.isValidRepo(repo) {
-            _ = run("/usr/libexec/PlistBuddy", ["-c", "Set :NotchIslandRepository \(repo)", newApp.appendingPathComponent("Contents/Info.plist").path])
-        }
-        _ = run("/usr/bin/xattr", ["-cr", newApp.path])
-        let mcp = newApp.appendingPathComponent("Contents/MacOS/notch-mcp").path
-        _ = run("/usr/bin/codesign", ["--force", "--sign", "-", "--identifier", id + ".mcp", "-r=designated => identifier \"\(id).mcp\"", mcp])
-        guard run("/usr/bin/codesign", ["--force", "--sign", "-", "--identifier", id, "-r=designated => identifier \"\(id)\"", newApp.path]) else {
-            DispatchQueue.main.async { self.fail(tr("Signieren fehlgeschlagen")) }
+        // Echtheit: Das Update muss unverändert und mit demselben Zertifikat signiert sein wie diese App.
+        // Nichts wird umgeschrieben oder neu signiert – sonst wäre die Prüfung wertlos.
+        guard let req = Self.ownRequirement(), Self.satisfies(newApp, req) else {
+            DispatchQueue.main.async { self.fail(tr("Update ist nicht mit dem Zertifikat dieser App signiert")) }
             return
         }
+        // Quarantäne entfernen (Signatur ist geprüft), sonst blockiert Gatekeeper den Neustart
+        _ = run("/usr/bin/xattr", ["-dr", "com.apple.quarantine", newApp.path])
         // Austausch erst, wenn diese App beendet ist – per kleinem Hilfsskript
         let target = Bundle.main.bundlePath
         let pid = ProcessInfo.processInfo.processIdentifier

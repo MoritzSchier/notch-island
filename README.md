@@ -25,7 +25,7 @@ You can reorder and hide tabs, change what each tab shows, and turn on a permane
 3. The app isn't notarized by Apple, so the first time you open it, **right-click it and choose Open**. If macOS still refuses, go to System Settings › Privacy & Security and click "Open Anyway".
 4. A short setup assistant walks you through the permissions.
 
-Updates show up in the notch when a new version is released – one click installs it.
+Updates show up in the notch when a new version is released – one click installs it. An update is only installed if it is signed with the same certificate as the app you have; otherwise the release page opens and you update by hand.
 
 **Requirements:** macOS 14 (Sonoma) or later, Apple Silicon or Intel.
 
@@ -40,6 +40,8 @@ cd notch-island
 ```
 
 Or just double-click `Install.command`. The app ends up in `~/Applications`. To update later: `git pull && ./build.sh`.
+
+On the first build, `build.sh` creates a self-signed code-signing certificate ("Notch Island Code Signing") in your login keychain and signs the app with it (hardened runtime). macOS then ties the app's permissions to that certificate instead of just the app's name, so no other program can pick them up by calling itself Notch Island. If you publish releases, back up this certificate: the in-app updater only accepts releases signed with it. To use a different identity (e.g. a Developer ID), set `SIGN_IDENTITY` in `local.env`.
 
 ## Permissions
 
