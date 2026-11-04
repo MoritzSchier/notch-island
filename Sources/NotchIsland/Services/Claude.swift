@@ -116,6 +116,9 @@ final class ClaudeService: ObservableObject {
         }
     }
 
+    /// Obergrenze pro Scan, damit sehr lange Chats die App nicht ausbremsen
+    static let scanLimit = 9000
+
     static let stopWords = ["stop response", "stop generating", "stop claude", "antwort stoppen", "antwort anhalten",
                             "generierung stoppen", "stoppen", "stopp", "stop"]
 
@@ -140,7 +143,7 @@ final class ClaudeService: ObservableObject {
             DispatchQueue.main.async {
                 self.polling = false
                 // Eine offene Rückfrage zählt als "wartet" – nicht als fertig
-                self.applyDetection(r.generating || !r.questions.isEmpty)
+                self.applyDetection(r.generating || !r.questions.isEmpty, complete: r.complete, visited: r.visited)
                 self.lastAXPrompts = r.permissions + r.questions
                 self.applyPrompts(self.lastAXPrompts)
                 // („Claude benötigt deine Aufmerksamkeit“ wurde entfernt – zu viele Fehlalarme)
@@ -148,21 +151,51 @@ final class ClaudeService: ObservableObject {
         }
     }
 
-    private func applyDetection(_ generating: Bool) {
+    /// So lange muss der Stopp-Knopf fehlen, bis eine Antwort als fertig gilt. Zwischen zwei Werkzeugschritten
+    /// verschwindet er in der Claude-App kurz, das soll noch nicht als „fertig“ zählen.
+    static let doneAfter: TimeInterval = 5
+    private var missingSince: Date?
+    private var incompleteSince: Date?
+    static let unreadableTimeout: TimeInterval = 180
+
+    private func applyDetection(_ generating: Bool, complete: Bool, visited: Int) {
         if generating {
+            if let m = missingSince {
+                DevBridge.log("Stopp-Knopf wieder da nach \(String(format: "%.1f", Date().timeIntervalSince(m))) s, Antwort läuft weiter")
+            }
             negatives = 0
+            missingSince = nil
+            incompleteSince = nil
             if current == nil {
                 current = ClaudeTask(source: .desktop, title: tr("Claude denkt nach …"), state: .running)
             }
         } else if current?.source == .desktop {
+            // Unvollständiger Scan (Zeitlimit, sehr langer Chat) beweist nicht, dass der Knopf weg ist
+            guard complete else {
+                if incompleteSince == nil { incompleteSince = Date(); DevBridge.log("Claude-App nicht lesbar (\(visited) Elemente), zählt nicht als fertig") }
+                // Bleibt die App lange unlesbar (Fenster zu), still beenden statt ewig „arbeitet“
+                if Date().timeIntervalSince(incompleteSince ?? Date()) > Self.unreadableTimeout {
+                    DevBridge.log("Claude-App seit \(Int(Self.unreadableTimeout)) s nicht lesbar, Aufgabe still beendet")
+                    finish(.done, silent: true)
+                }
+                return
+            }
+            incompleteSince = nil
             negatives += 1
-            if negatives >= 2 { finish(.done) }
+            if missingSince == nil { missingSince = Date(); DevBridge.log("Stopp-Knopf weg (\(visited) Elemente)") }
+            if negatives >= 3, Date().timeIntervalSince(missingSince ?? Date()) >= Self.doneAfter {
+                DevBridge.log("Claude fertig nach \(negatives) Scans ohne Stopp-Knopf (\(visited) Elemente)")
+                finish(.done)
+            }
         }
     }
 
     /// Durchsucht die Fenster der Claude-App nach einem „Stopp“-Knopf (sichtbar, solange eine Antwort entsteht).
     struct Detection {
         var generating = false
+        /// Alle Fenster vollständig durchsucht (kein Zeitlimit, keine Obergrenze erreicht)
+        var complete = true
+        var visited = 0
         var permissions: [PermissionScanner.Found] = []
         var questions: [PermissionScanner.Found] = []
         /// Claude wartet auf etwas, das sich nicht auslesen ließ → Fenster, in dem es passiert
@@ -187,7 +220,7 @@ final class ClaudeService: ObservableObject {
         }
         AXUIElementSetMessagingTimeout(app, 0.4)
         var r = Detection()
-        guard let windows = AX.attr(app, kAXWindowsAttribute as String) as? [AXUIElement] else { return r }
+        guard let windows = AX.attr(app, kAXWindowsAttribute as String) as? [AXUIElement] else { r.complete = false; return r }
         var visited = 0
         var labels: [String] = []
         for win in windows {
@@ -195,7 +228,8 @@ final class ClaudeService: ObservableObject {
             var permCandidates: [AXUIElement] = []
             var cardFailed = false
             var statusHint: String?
-            while let el = stack.popLast(), visited < 9000 {
+            while let el = stack.popLast() {
+                guard visited < Self.scanLimit else { r.complete = false; break }
                 visited += 1
                 let role = AX.string(el, kAXRoleAttribute as String)
                 if role == (kAXGroupRole as String), QuestionScanner.isCard(el) {
@@ -242,6 +276,9 @@ final class ClaudeService: ObservableObject {
                 r.attentionText = statusHint ?? tr("Claude wartet auf eine Antwort von dir")
             }
         }
+        r.visited = visited
+        // Kein Fenster lesbar: Die Claude-App liefert zwischen Arbeitsschritten manchmal eine leere Liste
+        if visited == 0 { r.complete = false }
         DispatchQueue.main.async { self.lastButtonLabels = labels }
         return r
     }
@@ -322,6 +359,8 @@ final class ClaudeService: ObservableObject {
         if t.source == .desktop { t.title = state == .error ? tr("Fehler") : tr("Antwort fertig") }
         current = nil
         negatives = 0
+        missingSince = nil
+        incompleteSince = nil
         history.insert(t, at: 0)
         if history.count > 12 { history.removeLast(history.count - 12) }
         guard !silent else { return }

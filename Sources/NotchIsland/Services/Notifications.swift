@@ -172,10 +172,13 @@ final class NotificationBannerMonitor {
             }
         }
         var appName = bundle.map { AppInfo.name($0) }
-        if bundle == nil, let first = texts.first,
-           let app = NSWorkspace.shared.runningApplications.first(where: { $0.localizedName == first }) {
-            bundle = app.bundleIdentifier
-            appName = first
+        // Neuere macOS-Versionen haben keine Stapel-Kennung mehr; der App-Name steht vorn in der Beschreibung
+        // („Slack, Absender, Text“) oder als erster Text.
+        if bundle == nil {
+            let candidates = [desc.components(separatedBy: ", ").first, texts.first].compactMap { $0 }.filter { !$0.isEmpty }
+            for name in candidates {
+                if let id = bundleID(forAppNamed: name) { bundle = id; appName = name; break }
+            }
         }
         // Zeitangaben ("jetzt", "vor 2 Min.") und den App-Namen aus dem Text entfernen
         let filtered = texts.filter { t in
@@ -187,6 +190,31 @@ final class NotificationBannerMonitor {
         let body = parts.count > 1 ? String(parts.dropFirst().joined(separator: " · ").prefix(160)) : nil
         let key = (bundle ?? "") + "|" + texts.joined(separator: "|")
         return Banner(key: key, bundleID: bundle, appName: appName, title: title, body: body, element: el)
+    }
+
+    private static var nameCache: [String: String] = [:]
+
+    /// Bundle-ID zu einem (lokalisierten) App-Namen: erst laufende Apps, dann die üblichen Programme-Ordner.
+    static func bundleID(forAppNamed name: String) -> String? {
+        if let hit = nameCache[name] { return hit.isEmpty ? nil : hit }
+        var found = NSWorkspace.shared.runningApplications.first { $0.localizedName == name }?.bundleIdentifier
+        if found == nil {
+            let fm = FileManager.default
+            let dirs = ["/Applications", "/System/Applications", "/System/Applications/Utilities",
+                        NSHomeDirectory() + "/Applications"]
+            outer: for dir in dirs {
+                for item in (try? fm.contentsOfDirectory(atPath: dir)) ?? [] where item.hasSuffix(".app") {
+                    let path = dir + "/" + item
+                    let display = fm.displayName(atPath: path).replacingOccurrences(of: ".app", with: "")
+                    if display == name || item == name + ".app" {
+                        found = Bundle(path: path)?.bundleIdentifier
+                        break outer
+                    }
+                }
+            }
+        }
+        nameCache[name] = found ?? ""
+        return found
     }
 
     /// Entwicklungshilfe: Baum der Mitteilungszentrale als Text

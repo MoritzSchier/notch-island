@@ -397,6 +397,11 @@ struct ToastView: View {
             FileThumb(url: f)
         } else if let img = toast.image {
             Image(nsImage: img).resizable().interpolation(.high).aspectRatio(contentMode: .fit).frame(width: 32, height: 32)
+        } else if toast.symbol == "sparkle" && toast.tint == .claude {
+            // Claude-Hinweise mit echtem Logo
+            ClaudeMark(size: 17)
+                .frame(width: 32, height: 32)
+                .background(Circle().fill(Color.claude.opacity(0.18)))
         } else {
             Image(systemName: toast.symbol)
                 .font(.system(size: 15, weight: .semibold))

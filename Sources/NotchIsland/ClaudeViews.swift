@@ -193,7 +193,7 @@ struct ClaudeIdleCard: View {
                     if let d = last.detail { Text(d).font(.system(size: 12)).foregroundStyle(Color.dim).lineLimit(2) }
                 } else {
                     HStack(spacing: 10) {
-                        ClaudeGlyph(size: 22, spinning: false)
+                        ClaudeMark(size: 22)
                         Text(tr("Claude ist bereit")).font(.system(size: 14, weight: .semibold))
                     }
                     Text(tr("Gib Claude einen Auftrag – hier siehst du dann Schritte, Fortschritt und geschätzte Restzeit."))

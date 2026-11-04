@@ -94,8 +94,13 @@ struct TabButton: View {
     var body: some View {
         let selected = model.tab == tab && !model.dropMode
         let dragging = model.draggingTab == tab
-        Image(systemName: tab.icon)
-            .font(.system(size: 11.5, weight: .semibold))
+        Group {
+            if tab == .claude {
+                ClaudeLogo().frame(width: 12.5, height: 12.5)
+            } else {
+                Image(systemName: tab.icon).font(.system(size: 11.5, weight: .semibold))
+            }
+        }
             .foregroundStyle(selected ? Color.white : Color.white.opacity(hover ? 0.85 : 0.48))
             .frame(width: 23, height: 22)
             .background(Capsule().fill(Color.white.opacity(dragging ? 0.25 : (selected ? 0.17 : (hover ? 0.07 : 0)))))

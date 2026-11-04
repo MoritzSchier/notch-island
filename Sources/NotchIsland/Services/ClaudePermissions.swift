@@ -407,8 +407,7 @@ struct PermissionView: View {
                     HStack(alignment: .top, spacing: 11) {
                         ZStack {
                             Circle().fill(Color.claude.opacity(0.2))
-                            Image(systemName: p.kind == .question ? "questionmark.bubble.fill" : "lock.shield.fill")
-                                .font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.claude)
+                            ClaudeMark(size: 18)
                         }
                         .frame(width: 34, height: 34)
                         VStack(alignment: .leading, spacing: 2) {
