@@ -186,11 +186,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func openSettings() {
         IslandModel.shared.collapse()
         if settingsWindow == nil {
-            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 820, height: 620),
-                             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
+            // NSHostingController statt nackter NSHostingView: SwiftUI-Listen/Formulare brauchen
+            // die View-Controller-Einbindung, sonst bleibt das Fenster leer.
+            let host = NSHostingController(rootView: SettingsView())
+            host.sizingOptions = [.minSize]
+            let w = NSWindow(contentViewController: host)
+            w.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             w.title = tr("Notch Island")
             w.isReleasedWhenClosed = false
-            w.contentView = NSHostingView(rootView: SettingsView())
+            w.setContentSize(NSSize(width: 820, height: 620))
             w.center()
             settingsWindow = w
         }
