@@ -51,6 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             CalendarService.shared.start()
             MediaController.shared.start()
             ClaudeService.shared.start()
+            SessionStore.shared.start()
             DockBadgeMonitor.shared.start()
             NotificationBannerMonitor.shared.start()
             NotificationDBMonitor.shared.start()

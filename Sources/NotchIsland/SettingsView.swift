@@ -12,6 +12,7 @@ struct SettingsView: View {
     @AppStorage(Prefs.showBattery) private var showBattery = true
     @AppStorage(Prefs.showBluetooth) private var showBluetooth = true
     @AppStorage(Prefs.showCalendar) private var showCalendar = true
+    @AppStorage(Prefs.showSessions) private var showSessions = true
     @AppStorage(Prefs.detectCalls) private var detectCalls = true
     @AppStorage(Prefs.detectClaude) private var detectClaude = true
     @AppStorage(Prefs.showDownloads) private var showDownloads = true
@@ -143,6 +144,7 @@ struct SettingsView: View {
                 Toggle(tr("Musik & Videos (Spotify, Musik, YouTube in Chrome)"), isOn: $showMedia)
                 Toggle(tr("Anrufe (WhatsApp, Discord, FaceTime, Zoom, Teams …)"), isOn: $detectCalls)
                 Toggle(tr("Claude: Fortschritt & „Antwort bereit“"), isOn: $detectClaude)
+                Toggle(tr("Claude Code: Ampel pro Session"), isOn: $showSessions)
                 Toggle(tr("Nächster Termin (15 Min vorher)"), isOn: $showCalendar)
                 Toggle(tr("Fällige Erinnerungen (Apple Erinnerungen)"), isOn: $showReminders)
                 Toggle(tr("Downloads"), isOn: $showDownloads)

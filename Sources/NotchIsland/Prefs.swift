@@ -22,6 +22,7 @@ enum Prefs {
     static let showBattery = "showBattery"
     static let showBluetooth = "showBluetooth"
     static let showCalendar = "showCalendar"
+    static let showSessions = "showSessions"
     static let detectCalls = "detectCalls"
     static let detectClaude = "detectClaude"
     static let showDownloads = "showDownloads"
@@ -43,7 +44,7 @@ enum Prefs {
         Opt.register()
         UserDefaults.standard.register(defaults: [
             hoverToOpen: true, haptics: true, showMedia: true, showVolumeHUD: true, showBrightnessHUD: true,
-            showBattery: true, showBluetooth: true, showCalendar: true, detectCalls: true, detectClaude: true,
+            showBattery: true, showBluetooth: true, showCalendar: true, showSessions: true, detectCalls: true, detectClaude: true,
             showDownloads: true, showBadges: true, clipboardHistory: true, downloadsToShelf: false, showPrivacy: true,
             defaultTab: "auto", claudePrimary: "auto", showReminders: true, showBanners: true, screenMode: "mouse", simulateNotch: false,
         ])
@@ -117,6 +118,7 @@ enum AppInfo {
         "com.apple.MobileSMS": tr("Nachrichten"),
         "com.apple.mail": tr("Mail"),
         "com.apple.iCal": tr("Kalender"),
+        "com.cron.electron": "Notion Calendar",
         "com.apple.reminders": tr("Erinnerungen"),
         "com.apple.Safari": tr("Safari"),
         "com.apple.WebKit.GPU": tr("Safari"),

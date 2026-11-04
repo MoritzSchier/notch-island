@@ -70,14 +70,19 @@ if args.contains("--install-claude-code") {
                                            ("PreToolUse", "tool", 5), ("SessionEnd", "end", 5)]
     for (event, arg, timeout) in wanted {
         var list = hooks[event] as? [[String: Any]] ?? []
-        // alte Einträge von Notch Island entfernen, dann neu eintragen
         list = list.filter { group in
             let hs = group["hooks"] as? [[String: Any]] ?? []
             return !hs.contains { ($0["command"] as? String ?? "").contains("notch-mcp") }
         }
+        if list.isEmpty { hooks.removeValue(forKey: event) } else { hooks[event] = list }
+    }
+    for (event, arg, timeout, matcher) in wanted {
+        var list = hooks[event] as? [[String: Any]] ?? []
         var h: [String: Any] = ["type": "command", "command": "\(cmd) --hook \(arg)"]
         if let timeout { h["timeout"] = timeout }
-        list.append(["hooks": [h]])
+        var group: [String: Any] = ["hooks": [h]]
+        if let matcher { group["matcher"] = matcher }
+        list.append(group)
         hooks[event] = list
     }
     cfg["hooks"] = hooks
@@ -93,28 +98,32 @@ if args.contains("--install-claude-code") {
 }
 
 // MARK: Claude-Code-Hooks
+//
+// Beide Hooks halten die Anfrage im Terminal zurück, bis in der Notch geantwortet wird.
+// Läuft die App nicht, bestätigt sie die Anfrage nicht binnen 3 s, antwortet niemand oder kommt
+// „Im Terminal“, endet der Hook ohne Ausgabe → Claude Code fragt wie gewohnt im Terminal.
 
-// Claude Code „PermissionRequest“-Hook: Frage in der Insel zeigen und auf die Antwort warten.
-// Antwortet niemand (oder „Im Terminal“), gibt der Hook nichts aus → Claude Code fragt wie gewohnt im Terminal.
-if args.contains("--hook"), args.contains("permission") {
-    var input: [String: Any] = [:]
-    if isatty(fileno(stdin)) == 0 {
-        input = (try? JSONSerialization.jsonObject(with: FileHandle.standardInput.readDataToEndOfFile()) as? [String: Any]) ?? [:]
-    }
-    let tool = input["tool_name"] as? String ?? "ein Werkzeug"
-    let ti = input["tool_input"] as? [String: Any] ?? [:]
-    let what = (ti["command"] as? String) ?? (ti["file_path"] as? String) ?? (ti["url"] as? String) ?? (ti["description"] as? String) ?? ""
-    let project = (input["cwd"] as? String).map { ($0 as NSString).lastPathComponent }
+let hookDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/NotchIsland/hook")
+
+func readHookInput() -> [String: Any] {
+    guard isatty(fileno(stdin)) == 0 else { return [:] }
+    return (try? JSONSerialization.jsonObject(with: FileHandle.standardInput.readDataToEndOfFile()) as? [String: Any]) ?? [:]
+}
+
+/// Anfrage ablegen, App benachrichtigen, auf Antwortdatei warten. nil = an das Terminal zurückgeben.
+func waitForNotch(kind: String, request: [String: Any]) -> Data? {
     let id = UUID().uuidString
     // Privater Austauschordner (nur dieser Benutzer); Inhalt der Anfrage nie systemweit verschicken
-    let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/NotchIsland/hook")
-    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-    let reqURL = dir.appendingPathComponent("req-\(id).json")
-    let ansURL = dir.appendingPathComponent("ans-\(id)")
-    let req: [String: Any] = ["title": "Claude Code möchte „\(tool)“ verwenden" + (project.map { " · \($0)" } ?? ""),
-                              "detail": String(what.prefix(160)), "pid": Int(getpid())]
-    if let data = try? JSONSerialization.data(withJSONObject: req) {
-        FileManager.default.createFile(atPath: reqURL.path, contents: data, attributes: [.posixPermissions: 0o600])
+    try? FileManager.default.createDirectory(at: hookDir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+    let reqURL = hookDir.appendingPathComponent("req-\(id).json")
+    let ansURL = hookDir.appendingPathComponent("ans-\(id)")
+    let seenURL = hookDir.appendingPathComponent("seen-\(id)")
+    var req = request
+    req["pid"] = Int(getpid())
+    guard let data = try? JSONSerialization.data(withJSONObject: req) else { return nil }
+    FileManager.default.createFile(atPath: reqURL.path, contents: data, attributes: [.posixPermissions: 0o600])
+    defer {
+        for u in [reqURL, ansURL, seenURL] { try? FileManager.default.removeItem(at: u) }
     }
     var note: [String: Any] = ["kind": "permission", "id": id]
     if let sid = input["session_id"] as? String { note["session"] = sid }
@@ -127,18 +136,123 @@ if args.contains("--hook"), args.contains("permission") {
         RunLoop.current.run(until: Date().addingTimeInterval(0.2))
         if let d = try? String(contentsOf: ansURL, encoding: .utf8) { decision = d.trimmingCharacters(in: .whitespacesAndNewlines) }
     }
-    try? FileManager.default.removeItem(at: reqURL)
-    try? FileManager.default.removeItem(at: ansURL)
-    guard let decision, decision == "allow" || decision == "deny" else {
+    if answer == nil {
         post(["kind": "permission_cancel", "id": id])
         RunLoop.current.run(until: Date().addingTimeInterval(0.15))
-        exit(0)   // keine Entscheidung → normale Abfrage im Terminal
     }
-    var dec: [String: Any] = ["behavior": decision]
+    return answer
+}
+
+func emit(_ out: [String: Any]) {
+    if let data = try? JSONSerialization.data(withJSONObject: out) { FileHandle.standardOutput.write(data) }
+}
+
+// PermissionRequest: Erlauben / Immer erlauben / Ablehnen
+if args.contains("--hook"), args.contains("permission") {
+    let input = readHookInput()
+    let tool = input["tool_name"] as? String ?? "Tool"
+    // Rückfragen und Plan-Freigaben haben eigene Dialoge im Terminal
+    if tool == "AskUserQuestion" || tool == "ExitPlanMode" { exit(0) }
+    let ti = input["tool_input"] as? [String: Any] ?? [:]
+    let what = (ti["command"] as? String) ?? (ti["file_path"] as? String) ?? (ti["url"] as? String)
+        ?? (ti["pattern"] as? String) ?? (ti["description"] as? String) ?? ""
+    let suggestions = (input["permission_suggestions"] as? [[String: Any]] ?? []).filter {
+        ($0["type"] as? String) != "setMode" || ($0["mode"] as? String) != "bypassPermissions"
+    }
+    let req: [String: Any] = ["tool": tool, "detail": String(what.prefix(400)),
+                              "description": ti["description"] as? String ?? "",
+                              "sessionId": input["session_id"] as? String ?? "",
+                              "cwd": input["cwd"] as? String ?? "",
+                              "suggestions": suggestions]
+    guard let raw = waitForNotch(kind: "permission", request: req),
+          let decision = String(data: raw, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+          ["allow", "always", "deny"].contains(decision) else { exit(0) }
+    var dec: [String: Any] = ["behavior": decision == "deny" ? "deny" : "allow"]
     if decision == "deny" { dec["message"] = "In der Notch abgelehnt" }
-    let out: [String: Any] = ["hookSpecificOutput": ["hookEventName": "PermissionRequest", "decision": dec]]
-    if let data = try? JSONSerialization.data(withJSONObject: out) {
-        FileHandle.standardOutput.write(data)
+    if decision == "always", !suggestions.isEmpty { dec["updatedPermissions"] = suggestions }
+    emit(["hookSpecificOutput": ["hookEventName": "PermissionRequest", "decision": dec]])
+    exit(0)
+}
+
+// PreToolUse für AskUserQuestion: Fragen in der Notch beantworten
+if args.contains("--hook"), args.contains("question") {
+    let input = readHookInput()
+    guard (input["tool_name"] as? String) == "AskUserQuestion",
+          let ti = input["tool_input"] as? [String: Any],
+          let questions = ti["questions"] as? [[String: Any]], !questions.isEmpty else { exit(0) }
+    let req: [String: Any] = ["questions": questions,
+                              "sessionId": input["session_id"] as? String ?? "",
+                              "cwd": input["cwd"] as? String ?? ""]
+    guard let raw = waitForNotch(kind: "question", request: req),
+          let obj = try? JSONSerialization.jsonObject(with: raw) as? [String: Any],
+          let answers = obj["answers"] as? [String: String], !answers.isEmpty else { exit(0) }
+    var updated = ti
+    updated["answers"] = answers
+    emit(["hookSpecificOutput": ["hookEventName": "PreToolUse", "permissionDecision": "allow", "updatedInput": updated]])
+    exit(0)
+}
+
+// Ampel pro Session: schreibt ~/.claude/notch/sessions/<id>.json, die App liest den Ordner.
+// Ereignisse: SessionStart, UserPromptSubmit, Notification, Stop, SessionEnd,
+//             SubagentStart (PreToolUse für Agent/Task), SubagentStop
+if let i = args.firstIndex(of: "--hook"), args.count > i + 1, args[i + 1] == "session" {
+    let input = readHookInput()
+    let event = args.count > i + 2 ? args[i + 2] : (input["hook_event_name"] as? String ?? "")
+    let sessionId = input["session_id"] as? String ?? "unknown"
+    guard sessionId.range(of: #"^[A-Za-z0-9-]+$"#, options: .regularExpression) != nil else { exit(0) }
+    let cwd = input["cwd"] as? String ?? FileManager.default.currentDirectoryPath
+    // NOTCH_SESSIONS_DIR nur für Tests (die App räumt Dateien ohne lebende Session sofort weg)
+    let dir = ProcessInfo.processInfo.environment["NOTCH_SESSIONS_DIR"].map { URL(fileURLWithPath: $0) }
+        ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/notch/sessions")
+    let file = dir.appendingPathComponent(sessionId + ".json")
+    if event == "SessionEnd" { try? FileManager.default.removeItem(at: file); exit(0) }
+
+    let previous = (try? Data(contentsOf: file)).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
+    var subagents = (previous["subagents"] as? NSNumber)?.intValue ?? 0
+    var mainStopped = previous["mainStopped"] as? Bool ?? false
+    let message = String((input["message"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines).prefix(200))
+    let status: String
+    switch event {
+    case "SessionStart":
+        status = "ready"; subagents = 0; mainStopped = false
+    case "UserPromptSubmit":
+        // Ein neuer Turn startet sauber – heilt auch einen verrutschten Zähler
+        status = "working"; subagents = 0; mainStopped = false
+    case "Notification":
+        // Nach 60 s Leerlauf schickt Claude auch einen Hinweis – das ist keine Frage, fertig bleibt grün
+        let idleNudge = message.lowercased().contains("waiting for your input")
+        status = (idleNudge && mainStopped && subagents == 0) ? (previous["status"] as? String ?? "done") : "blocked"
+    case "SubagentStart":
+        subagents += 1; status = "working"
+    case "SubagentStop":
+        subagents = max(0, subagents - 1)
+        // Ein fertiger Subagent darf eine offene Frage nicht verdecken
+        status = (previous["status"] as? String) == "blocked" ? "blocked" : ((mainStopped && subagents == 0) ? "done" : "working")
+    case "Stop":
+        mainStopped = true; status = subagents == 0 ? "done" : "working"
+    default:
+        exit(0)
+    }
+    let stamp: String = {
+        let f = ISO8601DateFormatter(); f.formatOptions = [.withInternetDateTime]; return f.string(from: Date())
+    }()
+    var record: [String: Any] = [
+        "sessionId": sessionId, "status": status,
+        "project": (cwd as NSString).lastPathComponent.isEmpty ? cwd : (cwd as NSString).lastPathComponent,
+        "cwd": cwd, "startedAt": previous["startedAt"] as? String ?? stamp, "updatedAt": stamp,
+        "subagents": subagents, "mainStopped": mainStopped,
+    ]
+    // Nur eine blockierte Session zeigt eine Meldung, und die überlebt Folge-Ereignisse
+    if status == "blocked" {
+        let m = message.isEmpty ? (previous["message"] as? String ?? "") : message
+        if !m.isEmpty { record["message"] = m }
+    }
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    if let data = try? JSONSerialization.data(withJSONObject: record) {
+        let tmp = file.appendingPathExtension("tmp")
+        if FileManager.default.createFile(atPath: tmp.path, contents: data) {
+            _ = rename(tmp.path, file.path)   // atomar ersetzen
+        }
     }
     exit(0)
 }

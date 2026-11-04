@@ -116,6 +116,14 @@ enum DevBridge {
         case "perm": ClaudeService.shared.demoPermission()
         case "permclear": ClaudeService.shared.openClaudeForPermission(); ClaudeService.shared.permissionIsDemo = false
         case "axdump": log("AX=\(AXIsProcessTrusted()) perm=\(String(describing: ClaudeService.shared.permission?.options.map(\.label))) Claude-Knöpfe: " + ClaudeService.shared.lastButtonLabels.joined(separator: " | "))
+        case "caldump":
+            let cal = CalendarService.shared
+            cal.refresh()
+            let sources = cal.store.calendars(for: .event).map { "\($0.source.title)/\($0.title)" }
+            log("Kalender (\(sources.count)): " + sources.joined(separator: " | "))
+            for e in cal.events.prefix(8) {
+                log("Termin: \(e.startDate!) \(e.title ?? "?") · \(e.calendar.source.title)/\(e.calendar.title)")
+            }
         case "state":
             log("presentation=\(model.presentation) activities=\(model.activities) media=\(String(describing: MediaController.shared.now)) inputs=\(AudioProcessMonitor.shared.inputApps) outputs=\(AudioProcessMonitor.shared.outputApps) claude=\(String(describing: ClaudeService.shared.current)) badges=\(DockBadgeMonitor.shared.badges.count) cal=\(CalendarService.shared.authorized)")
         case "snap":

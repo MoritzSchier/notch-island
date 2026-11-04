@@ -337,6 +337,20 @@ final class CalendarService: ObservableObject {
         return "\(day) \(start)–\(end)\(rel)".trimmingCharacters(in: .whitespaces)
     }
 
+    /// Klick auf einen Termin: Notion Calendar, falls installiert, sonst Apple Kalender.
+    /// (Die Termine selbst kommen immer aus den macOS-Kalendern, z. B. Google-Konten unter Internetaccounts.)
+    static let notionCalendarBundle = "com.cron.electron"
+
+    static func openCalendarApp() {
+        let id = notionCalendarBundle
+        if !NSRunningApplication.runningApplications(withBundleIdentifier: id).isEmpty
+            || NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) != nil {
+            AppInfo.activate(id)
+        } else {
+            AppInfo.activate("com.apple.iCal")
+        }
+    }
+
     static func joinURL(_ e: EKEvent) -> URL? {
         let hosts = ["zoom.us", "meet.google.com", "teams.microsoft.com", "teams.live.com", "webex.com", "facetime.apple.com", "whereby.com", "discord.gg"]
         let texts = [e.url?.absoluteString, e.location, e.notes].compactMap { $0 }

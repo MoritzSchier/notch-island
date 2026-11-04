@@ -316,6 +316,15 @@ struct ClaudeGlyph: View {
     }
 }
 
+/// Feststehendes Claude-Logo (Tab, Karten, Hinweise). Der drehende Stern bleibt ENTRANCE.
+struct ClaudeMark: View {
+    var size: CGFloat = 16
+    var color: Color = .claude
+    var body: some View {
+        ClaudeLogo().fill(color).frame(width: size, height: size)
+    }
+}
+
 struct SectionLabel: View {
     let text: String
     var body: some View {
