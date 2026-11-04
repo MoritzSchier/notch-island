@@ -75,7 +75,8 @@ Everything stays on your Mac. There's no account, no server and no analytics. Th
 
 1. Bump `VERSION` in `build.sh`.
 2. Run `./build.sh --release` – this creates `dist/NotchIsland-<version>.zip` for Apple Silicon and Intel without installing anything.
-3. Create a GitHub release with the tag `v<version>` and attach the zip.
+   Use `./build.sh --dmg` instead to additionally get `dist/NotchIsland-<version>.dmg` (drag-to-Applications disk image).
+3. Create a GitHub release with the tag `v<version>` and attach the zip (and the dmg).
 
 ## License
 
