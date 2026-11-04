@@ -65,22 +65,10 @@ if args.contains("--install-claude-code") {
         try? raw.write(to: url.appendingPathExtension("backup"))
     }
     var hooks = cfg["hooks"] as? [String: Any] ?? [:]
-    // (Ereignis, Argument, Timeout, Matcher)
-    var wanted: [(String, String, Int?, String?)] = [("PermissionRequest", "permission", 600, nil),
-                                                     ("PreToolUse", "question", 600, "AskUserQuestion")]
-    // Ampel pro Session – außer es läuft schon ein eigener Status-Hook (notch-hook.py), sonst zählt alles doppelt
-    let ownStatusHook = (hooks.values.compactMap { $0 as? [[String: Any]] }.joined()).contains { group in
-        (group["hooks"] as? [[String: Any]] ?? []).contains { ($0["command"] as? String ?? "").contains("notch-hook.py") }
-    }
-    if !ownStatusHook {
-        for event in ["SessionStart", "UserPromptSubmit", "Notification", "Stop", "SessionEnd", "SubagentStop"] {
-            wanted.append((event, "session \(event)", 5, nil))
-        }
-        wanted.append(("PreToolUse", "session SubagentStart", 5, "Agent|Task"))
-    }
-    // Alte Notch-Island-Einträge überall entfernen (auch frühere Status-Hooks)
-    for event in ["SessionStart", "UserPromptSubmit", "Notification", "Stop", "SessionEnd", "SubagentStop",
-                  "PermissionRequest", "PreToolUse"] {
+    let wanted: [(String, String, Int?)] = [("UserPromptSubmit", "running", nil), ("Notification", "waiting", nil),
+                                           ("Stop", "done", nil), ("PermissionRequest", "permission", 600),
+                                           ("PreToolUse", "tool", 5), ("SessionEnd", "end", 5)]
+    for (event, arg, timeout) in wanted {
         var list = hooks[event] as? [[String: Any]] ?? []
         list = list.filter { group in
             let hs = group["hooks"] as? [[String: Any]] ?? []
@@ -137,15 +125,16 @@ func waitForNotch(kind: String, request: [String: Any]) -> Data? {
     defer {
         for u in [reqURL, ansURL, seenURL] { try? FileManager.default.removeItem(at: u) }
     }
-    post(["kind": kind, "id": id])
-    var answer: Data?
-    let start = Date()
-    let deadline = start.addingTimeInterval(590)
-    while answer == nil && Date() < deadline {
-        RunLoop.current.run(until: Date().addingTimeInterval(0.15))
-        if let d = try? Data(contentsOf: ansURL), !d.isEmpty { answer = d; break }
-        // App läuft nicht oder hat die Anfrage nicht angenommen → sofort ans Terminal
-        if Date().timeIntervalSince(start) > 3 && !FileManager.default.fileExists(atPath: seenURL.path) { break }
+    var note: [String: Any] = ["kind": "permission", "id": id]
+    if let sid = input["session_id"] as? String { note["session"] = sid }
+    if let project { note["project"] = project }
+    if let term = ProcessInfo.processInfo.environment["TERM_PROGRAM"] { note["term"] = term }
+    post(note)
+    var decision: String?
+    let deadline = Date().addingTimeInterval(590)
+    while decision == nil && Date() < deadline {
+        RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        if let d = try? String(contentsOf: ansURL, encoding: .utf8) { decision = d.trimmingCharacters(in: .whitespacesAndNewlines) }
     }
     if answer == nil {
         post(["kind": "permission_cancel", "id": id])
@@ -277,7 +266,19 @@ if let i = args.firstIndex(of: "--hook") {
     }
     var msg: [String: Any] = ["kind": "claude", "source": "code", "state": state]
     let project = (input["cwd"] as? String).map { ($0 as NSString).lastPathComponent }
-    if let p = input["prompt"] as? String {
+    // Für die Sitzungs-Übersicht: welche Sitzung, welches Projekt, in welchem Terminal
+    if let sid = input["session_id"] as? String { msg["session"] = sid }
+    if let project { msg["project"] = project }
+    if let term = ProcessInfo.processInfo.environment["TERM_PROGRAM"] { msg["term"] = term }
+    if state == "tool" {
+        // PreToolUse: was der Agent gerade tut (z. B. „Bash: npm test“)
+        let tool = input["tool_name"] as? String ?? "Werkzeug"
+        let ti = input["tool_input"] as? [String: Any] ?? [:]
+        let what = (ti["command"] as? String) ?? (ti["file_path"] as? String).map { ($0 as NSString).lastPathComponent }
+            ?? (ti["pattern"] as? String) ?? (ti["url"] as? String) ?? (ti["description"] as? String) ?? ""
+        msg["state"] = "running"
+        msg["activity"] = what.isEmpty ? tool : "\(tool): \(what.prefix(60))"
+    } else if let p = input["prompt"] as? String {
         msg["title"] = "Claude Code" + (project.map { " · \($0)" } ?? "")
         msg["detail"] = String(p.prefix(80))
     } else if let m = input["message"] as? String {
@@ -285,7 +286,7 @@ if let i = args.firstIndex(of: "--hook") {
     }
     if state == "done" { msg["title"] = "Claude Code ist fertig" + (project.map { " · \($0)" } ?? "") }
     post(msg)
-    RunLoop.current.run(until: Date().addingTimeInterval(0.15))
+    RunLoop.current.run(until: Date().addingTimeInterval(0.1))
     exit(0)
 }
 

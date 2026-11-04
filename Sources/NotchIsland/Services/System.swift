@@ -552,7 +552,7 @@ final class DockBadgeMonitor: ObservableObject {
         for b in result {
             let now = counts[b.bundleID] ?? 0
             let before = last[b.bundleID] ?? 0
-            guard now > before, AppInfo.frontmost != b.bundleID else { continue }
+            guard now > before, !AppInfo.isVisiblyFrontmost(b.bundleID) else { continue }
             // Kann Notch Island Mitteilungen direkt lesen, ist der Zähler überflüssig („7 neue Mitteilungen“ doppelt)
             if NotificationDBMonitor.shared.available && Prefs.on(Prefs.showBanners) { continue }
             if !Opt.notificationsAllowed(b.bundleID) { continue }

@@ -11,7 +11,7 @@ The app is available in English and German.
 - **Music and videos** – Spotify, Apple Music and YouTube in Chrome, with cover art and controls
 - **Calls** – WhatsApp, FaceTime, Discord, Zoom, Teams and others, with call timer and mute
 - **Notifications** – sender and the first lines of the message, stacked per app like on iPhone. By default only apps that matter show up (messengers, mail, Slack, Teams, calendar …); you can add others in settings
-- **Claude** – live progress, "reply ready", permission requests and multiple-choice questions you can answer in the notch, plus your usage limit. Works with Claude Desktop and Claude Code, including several agents at once
+- **Claude** – live progress, "reply ready", permission requests and multiple-choice questions you can answer in the notch, plus your usage limit. Works with Claude Desktop and Claude Code. If you run several agents in parallel, the Claude tab shows all sessions at a glance – which one is working, which one is waiting for you – and a click takes you there
 - **Shelf** – drag files onto the notch to keep them, share them, zip them, convert them (PDF, DOCX, JPEG, PNG, MP4, MP3 …) or make them smaller
 - **Timers and stopwatch**, your **next event** with a join button, and due **reminders**
 - **Color picker**, **audio device switching**, **battery details**, a camera **mirror**, **clipboard history** and a quick note
@@ -84,7 +84,8 @@ Everything stays on your Mac. There's no account, no server and no analytics. Th
 
 1. Bump `VERSION` in `build.sh`.
 2. Run `./build.sh --release` – this creates `dist/NotchIsland-<version>.zip` for Apple Silicon and Intel without installing anything.
-3. Create a GitHub release with the tag `v<version>` and attach the zip.
+   Use `./build.sh --dmg` instead to additionally get `dist/NotchIsland-<version>.dmg` (drag-to-Applications disk image).
+3. Create a GitHub release with the tag `v<version>` and attach the zip (and the dmg).
 
 ## License
 

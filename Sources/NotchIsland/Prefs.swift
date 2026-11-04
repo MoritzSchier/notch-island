@@ -59,6 +59,20 @@ enum Prefs {
 }
 
 enum AppInfo {
+    /// Ist die App wirklich sichtbar im Vordergrund (aktiv UND mit Fenster auf dem Bildschirm)?
+    /// Minimiert oder ohne offenes Fenster zählt nicht – dann sollen ihre Mitteilungen in der Insel erscheinen.
+    static func isVisiblyFrontmost(_ bundleID: String) -> Bool {
+        guard let app = NSWorkspace.shared.frontmostApplication,
+              app.bundleIdentifier?.lowercased() == bundleID.lowercased() else { return false }
+        let pid = app.processIdentifier
+        guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return true }
+        return list.contains { w in
+            (w[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == pid
+                && (w[kCGWindowLayer as String] as? NSNumber)?.intValue == 0
+                && ((w[kCGWindowBounds as String] as? [String: Any]).flatMap { ($0["Height"] as? NSNumber)?.doubleValue } ?? 0) > 100
+        }
+    }
+
     private static var iconCache: [String: NSImage] = [:]
 
     static func icon(_ bundleID: String) -> NSImage? {
