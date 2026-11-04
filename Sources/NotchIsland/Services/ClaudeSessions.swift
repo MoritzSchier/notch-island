@@ -2,80 +2,34 @@ import AppKit
 import SwiftUI
 import ApplicationServices
 
-/// Eine laufende Claude-Sitzung (Claude-Code-Terminal oder Claude-Desktop-Fenster).
-/// Alle zusammen ergeben die Übersicht „Was machen meine Agenten gerade?“.
-struct ClaudeSession: Identifiable, Equatable {
-    enum Source { case code, desktop }
+/// Ein Claude-Desktop-Fenster mit laufender oder kürzlich fertiger Antwort.
+/// Claude-Code-Sitzungen laufen separat über `SessionStore` (Ampel, Freigaben, Rückfragen).
+struct DesktopSession: Identifiable, Equatable {
     enum State: Int { case waiting = 0, running = 1, done = 2 }
 
     let id: String
-    var source: Source
     var name: String
     var state: State
     var activity: String?
     var startedAt = Date()
     var updatedAt = Date()
-    /// Terminal-App (aus TERM_PROGRAM), um beim Klick dorthin zu springen
-    var terminalBundle: String?
     var window: AXUIElement?
 
-    static func == (a: ClaudeSession, b: ClaudeSession) -> Bool {
+    static func == (a: DesktopSession, b: DesktopSession) -> Bool {
         a.id == b.id && a.state == b.state && a.activity == b.activity && a.name == b.name && a.updatedAt == b.updatedAt
-    }
-
-    static func terminalBundle(for termProgram: String?) -> String? {
-        switch termProgram?.lowercased() ?? "" {
-        case "apple_terminal": return "com.apple.Terminal"
-        case "iterm.app": return "com.googlecode.iterm2"
-        case "vscode": return "com.microsoft.VSCode"
-        case "warpterminal": return "dev.warp.Warp-Stable"
-        case "ghostty": return "com.mitchellh.ghostty"
-        case "wezterm": return "com.github.wez.wezterm"
-        case "tabby": return "org.tabby"
-        case "": return nil
-        default: return nil
-        }
     }
 }
 
 extension ClaudeService {
     /// Sitzungen für die Übersicht: wartende zuerst, dann laufende, dann kürzlich fertige
-    var visibleSessions: [ClaudeSession] {
+    var visibleSessions: [DesktopSession] {
         let now = Date()
-        return sessions
+        return desktopSessions
             .filter { $0.state != .done || now.timeIntervalSince($0.updatedAt) < 600 }
             .sorted { ($0.state.rawValue, -$0.updatedAt.timeIntervalSince1970) < ($1.state.rawValue, -$1.updatedAt.timeIntervalSince1970) }
     }
 
-    var activeSessionCount: Int { sessions.filter { $0.state != .done }.count }
-
-    // MARK: Claude Code (Hooks)
-
-    func updateCodeSession(_ d: [String: Any]) {
-        guard let sid = d["session"] as? String, !sid.isEmpty else { return }
-        let state = (d["state"] as? String ?? "running").lowercased()
-        let id = "code:" + sid
-        if state == "end" {
-            sessions.removeAll { $0.id == id }
-            return
-        }
-        var s = sessions.first { $0.id == id }
-            ?? ClaudeSession(id: id, source: .code, name: d["project"] as? String ?? "Claude Code", state: .running)
-        if let p = d["project"] as? String, !p.isEmpty { s.name = p }
-        if let t = d["term"] as? String { s.terminalBundle = ClaudeSession.terminalBundle(for: t) ?? s.terminalBundle }
-        switch state {
-        case "waiting", "permission": s.state = .waiting
-        case "done", "error": s.state = .done
-        default:
-            if s.state == .done { s.startedAt = Date() }
-            s.state = .running
-        }
-        if let a = d["activity"] as? String { s.activity = a }
-        else if let det = d["detail"] as? String, !det.isEmpty { s.activity = det }
-        if state == "done" { s.activity = tr("Fertig") }
-        s.updatedAt = Date()
-        upsert(s)
-    }
+    var activeSessionCount: Int { desktopSessions.filter { $0.state != .done }.count }
 
     // MARK: Claude Desktop (Fenster)
 
@@ -92,10 +46,10 @@ extension ClaudeService {
             let name = (w.title.isEmpty || w.title == "Claude") ? "Claude" : w.title
             let id = "desktop:" + name
             seen.insert(id)
-            let existing = sessions.first { $0.id == id }
+            let existing = desktopSessions.first { $0.id == id }
             guard w.generating || w.waiting || existing != nil else { continue }
-            var s = existing ?? ClaudeSession(id: id, source: .desktop, name: name, state: .running)
-            let newState: ClaudeSession.State = w.waiting ? .waiting : (w.generating ? .running : .done)
+            var s = existing ?? DesktopSession(id: id, name: name, state: .running)
+            let newState: DesktopSession.State = w.waiting ? .waiting : (w.generating ? .running : .done)
             if s.state == .done && newState != .done { s.startedAt = Date() }
             if newState != s.state || s.window == nil {
                 s.state = newState
@@ -106,41 +60,36 @@ extension ClaudeService {
             upsert(s)
         }
         // Fenster geschlossen → Sitzung als fertig markieren
-        for i in sessions.indices where sessions[i].source == .desktop && !seen.contains(sessions[i].id) && sessions[i].state != .done {
-            sessions[i].state = .done
-            sessions[i].updatedAt = Date()
+        for i in desktopSessions.indices where !seen.contains(desktopSessions[i].id) && desktopSessions[i].state != .done {
+            desktopSessions[i].state = .done
+            desktopSessions[i].updatedAt = Date()
         }
     }
 
-    private func upsert(_ s: ClaudeSession) {
-        if let i = sessions.firstIndex(where: { $0.id == s.id }) {
-            if sessions[i] != s || sessions[i].window == nil { sessions[i] = s }
+    private func upsert(_ s: DesktopSession) {
+        if let i = desktopSessions.firstIndex(where: { $0.id == s.id }) {
+            if desktopSessions[i] != s || desktopSessions[i].window == nil { desktopSessions[i] = s }
         } else {
-            sessions.append(s)
+            desktopSessions.append(s)
         }
         // alte, fertige Sitzungen aufräumen
         let now = Date()
-        sessions.removeAll { $0.state == .done && now.timeIntervalSince($0.updatedAt) > 1800 }
+        desktopSessions.removeAll { $0.state == .done && now.timeIntervalSince($0.updatedAt) > 1800 }
     }
 
-    /// Zur Sitzung springen: Claude-Fenster nach vorn bzw. das Terminal öffnen
-    func focus(_ s: ClaudeSession) {
-        switch s.source {
-        case .desktop:
-            if let w = s.window {
-                AXUIElementPerformAction(w, kAXRaiseAction as CFString)
-                AXUIElementSetAttributeValue(w, kAXMainAttribute as CFString, kCFBooleanTrue)
-            }
-            AppInfo.activate(Const.claudeBundle)
-        case .code:
-            AppInfo.activate(s.terminalBundle ?? "com.apple.Terminal")
+    /// Zur Sitzung springen: Claude-Fenster nach vorn holen
+    func focus(_ s: DesktopSession) {
+        if let w = s.window {
+            AXUIElementPerformAction(w, kAXRaiseAction as CFString)
+            AXUIElementSetAttributeValue(w, kAXMainAttribute as CFString, kCFBooleanTrue)
         }
+        AppInfo.activate(Const.claudeBundle)
     }
 }
 
 // MARK: - Übersicht im Claude-Tab
 
-struct ClaudeSessionsView: View {
+struct DesktopSessionsView: View {
     @ObservedObject var claude = ClaudeService.shared
 
     var body: some View {
@@ -156,7 +105,7 @@ struct ClaudeSessionsView: View {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 5) {
                     ForEach(claude.visibleSessions) { s in
-                        SessionRow(session: s)
+                        DesktopSessionRow(session: s)
                             .onTapGesture { claude.focus(s) }
                     }
                 }
@@ -165,14 +114,14 @@ struct ClaudeSessionsView: View {
     }
 }
 
-struct SessionRow: View {
-    let session: ClaudeSession
+struct DesktopSessionRow: View {
+    let session: DesktopSession
 
     var body: some View {
         HStack(spacing: 8) {
             ZStack {
                 Circle().fill(color.opacity(0.18))
-                Image(systemName: session.source == .code ? "terminal.fill" : "bubble.left.fill")
+                Image(systemName: "bubble.left.fill")
                     .font(.system(size: 9.5, weight: .semibold)).foregroundStyle(color)
             }
             .frame(width: 22, height: 22)
