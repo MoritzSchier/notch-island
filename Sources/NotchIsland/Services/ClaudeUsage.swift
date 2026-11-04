@@ -5,7 +5,7 @@ import WebKit
 /// Nutzungslimit von Claude (5-Stunden-Fenster und Wochenlimit), wie unter claude.ai › Einstellungen › Nutzung.
 /// Die App hat dafür ein eigenes, kleines claude.ai-Fenster: Du meldest dich dort einmal selbst an,
 /// danach liest die App nur die Nutzungswerte deines Kontos aus. Passwörter oder Tokens sieht oder speichert sie nicht.
-final class ClaudeUsage: NSObject, ObservableObject, WKNavigationDelegate {
+final class ClaudeUsage: NSObject, ObservableObject, WKNavigationDelegate, WKUIDelegate {
     static let shared = ClaudeUsage()
 
     struct Window: Identifiable, Equatable {
@@ -26,6 +26,9 @@ final class ClaudeUsage: NSObject, ObservableObject, WKNavigationDelegate {
     private var webView: WKWebView!
     private var hostWindow: NSWindow!
     private var loginWindow: NSWindow?
+    /// Popup-Fenster der Anmeldung (Google/Apple öffnen ihren Login per window.open)
+    private var popups: [NSWindow] = []
+    private static let userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15"
     private var timer: Timer?
     private var pageReady = false
     private var pending: [(() -> Void)] = []
@@ -73,9 +76,11 @@ final class ClaudeUsage: NSObject, ObservableObject, WKNavigationDelegate {
         guard webView == nil else { return }
         let cfg = WKWebViewConfiguration()
         cfg.websiteDataStore = .default()
+        cfg.preferences.javaScriptCanOpenWindowsAutomatically = true
         webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 520, height: 700), configuration: cfg)
         webView.navigationDelegate = self
-        webView.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15"
+        webView.uiDelegate = self
+        webView.customUserAgent = Self.userAgent
         // Unsichtbares Fenster, damit die Seite normal läuft
         hostWindow = NSWindow(contentRect: NSRect(x: -3000, y: -3000, width: 520, height: 700), styleMask: [.borderless], backing: .buffered, defer: false)
         hostWindow.contentView = webView
@@ -85,6 +90,7 @@ final class ClaudeUsage: NSObject, ObservableObject, WKNavigationDelegate {
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        guard webView === self.webView else { return }
         pageReady = true
         refresh()
         let p = pending
@@ -93,11 +99,68 @@ final class ClaudeUsage: NSObject, ObservableObject, WKNavigationDelegate {
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        guard webView === self.webView, !Self.isCancel(error) else { return }
         state = .error(tr("Keine Verbindung zu claude.ai"))
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        guard webView === self.webView, !Self.isCancel(error) else { return }
         state = .error(tr("Keine Verbindung zu claude.ai"))
+    }
+
+    /// Abgebrochene Ladevorgänge (z. B. Weiterleitung während des Logins) sind kein Verbindungsfehler.
+    private static func isCancel(_ error: Error) -> Bool {
+        let e = error as NSError
+        return e.domain == NSURLErrorDomain && e.code == NSURLErrorCancelled
+    }
+
+    // MARK: Popups (Google-/Apple-Anmeldung)
+
+    /// Google und Apple öffnen den Login als Popup. Ohne dieses Fenster verwirft WebKit das Popup
+    /// und claude.ai meldet „Bei der Anmeldung ist ein Fehler aufgetreten“.
+    func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
+                 for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+        let size = NSSize(width: windowFeatures.width?.doubleValue ?? 500,
+                          height: windowFeatures.height?.doubleValue ?? 640)
+        // Die übergebene Konfiguration verwenden, damit window.opener zur claude.ai-Seite zurückfindet
+        let popup = WKWebView(frame: NSRect(origin: .zero, size: size), configuration: configuration)
+        popup.customUserAgent = Self.userAgent
+        popup.uiDelegate = self
+        let w = NSWindow(contentRect: NSRect(origin: .zero, size: size),
+                         styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+        w.title = tr("Bei Claude anmelden – nur für die Nutzungsanzeige")
+        w.isReleasedWhenClosed = false
+        w.contentView = popup
+        if let parent = webView.window {
+            let f = parent.frame
+            w.setFrameOrigin(NSPoint(x: f.midX - size.width / 2, y: f.midY - size.height / 2))
+        } else {
+            w.center()
+        }
+        NotificationCenter.default.addObserver(self, selector: #selector(popupClosed), name: NSWindow.willCloseNotification, object: w)
+        popups.append(w)
+        NSApp.activate(ignoringOtherApps: true)
+        w.makeKeyAndOrderFront(nil)
+        return popup
+    }
+
+    /// Das Popup schließt sich nach der Anmeldung selbst (window.close()).
+    func webViewDidClose(_ webView: WKWebView) {
+        popups.first { $0.contentView === webView }?.close()
+    }
+
+    @objc private func popupClosed(_ n: Notification) {
+        guard let w = n.object as? NSWindow else { return }
+        NotificationCenter.default.removeObserver(self, name: NSWindow.willCloseNotification, object: w)
+        (w.contentView as? WKWebView)?.stopLoading()
+        w.contentView = nil
+        popups.removeAll { $0 === w }
+        // Nach dem Popup-Login navigiert claude.ai oft nicht neu – also gleich nachsehen
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.refresh() }
+    }
+
+    private func closePopups() {
+        popups.forEach { $0.close() }
     }
 
     private static let script = """
@@ -222,11 +285,13 @@ final class ClaudeUsage: NSObject, ObservableObject, WKNavigationDelegate {
     private func closeLoginIfDone() {
         guard let w = loginWindow, state == .ok else { return }
         loginWindow = nil
+        closePopups()
         w.close()
     }
 
     @objc private func loginClosed(_ n: Notification) {
         loginWindow = nil
+        closePopups()
         hostWindow.contentView = webView
         pageReady = false
         webView.load(URLRequest(url: URL(string: "https://claude.ai/")!))
