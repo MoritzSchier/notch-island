@@ -92,8 +92,8 @@ final class ClaudeService: ObservableObject {
     var lastAXPrompts: [PermissionScanner.Found] = []
     /// Wie viele Anfragen gerade offen sind (alle Agenten zusammen)
     @Published var queueCount = 0
-    /// Alle Claude-Sitzungen (mehrere Agenten / Terminals / Fenster) für die Übersicht
-    @Published var sessions: [ClaudeSession] = []
+    /// Claude-Desktop-Fenster (mehrere Unterhaltungen gleichzeitig) für die Übersicht
+    @Published var desktopSessions: [DesktopSession] = []
     var lastButtonLabels: [String] = []
 
     private let queue = DispatchQueue(label: "notch.claude", qos: .utility)
@@ -145,7 +145,7 @@ final class ClaudeService: ObservableObject {
             DispatchQueue.main.async {
                 self.polling = false
                 // Eine offene Rückfrage zählt als "wartet" – nicht als fertig
-                self.applyDetection(r.generating || !r.questions.isEmpty)
+                self.applyDetection(r.generating || !r.questions.isEmpty, complete: r.complete, visited: r.visited)
                 self.updateDesktopSessions(r.windows)
                 self.lastAXPrompts = r.permissions + r.questions
                 self.applyPrompts(self.lastAXPrompts)
@@ -234,7 +234,8 @@ final class ClaudeService: ObservableObject {
             var statusHint: String?
             let questionsBefore = r.questions.count
             var winGenerating = false
-            while let el = stack.popLast(), visited < 9000 {
+            while let el = stack.popLast() {
+                guard visited < Self.scanLimit else { r.complete = false; break }
                 visited += 1
                 let role = AX.string(el, kAXRoleAttribute as String)
                 if role == (kAXGroupRole as String), QuestionScanner.isCard(el) {
@@ -400,16 +401,6 @@ final class ClaudeService: ObservableObject {
 
     func handleExternal(_ d: [String: Any]) {
         let kind = d["kind"] as? String ?? "claude"
-        // Sitzungs-Übersicht (Claude Code mit Sitzungskennung)
-        if d["session"] != nil {
-            if kind == "permission" {
-                var w = d; w["state"] = "waiting"; w["activity"] = tr("Wartet auf deine Erlaubnis")
-                updateCodeSession(w)
-            } else if kind == "claude" {
-                updateCodeSession(d)
-                if (d["state"] as? String) == "end" { return }
-            }
-        }
         switch kind {
         case "permission":
             // Inhalt liegt in einer privaten Datei – über die systemweite Nachricht kommt nur die Kennung

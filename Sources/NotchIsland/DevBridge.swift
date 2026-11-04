@@ -226,12 +226,6 @@ enum DevBridge {
                 inPipe.fileHandleForWriting.write(json.data(using: .utf8)!)
                 try? inPipe.fileHandleForWriting.close()
             }
-        case "sessiontest":
-            let c = ClaudeService.shared
-            c.handleExternal(["kind": "claude", "source": "code", "state": "running", "session": "a1", "project": "notch-island", "term": "Apple_Terminal", "detail": "Tests reparieren"])
-            c.handleExternal(["kind": "claude", "source": "code", "state": "running", "session": "b2", "project": "website", "term": "vscode", "activity": "Bash: npm run build"])
-            c.handleExternal(["kind": "claude", "source": "code", "state": "waiting", "session": "c3", "project": "uni-skript", "detail": "Claude needs your permission to use Bash"])
-            c.handleExternal(["kind": "claude", "source": "code", "state": "done", "session": "d4", "project": "notizen"])
         case "answer":
             // answer <Beschriftung> – drückt in der aktuellen Anfrage den Knopf mit dieser Beschriftung
             let label = parts.dropFirst().joined(separator: " ")

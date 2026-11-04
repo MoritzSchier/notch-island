@@ -7,13 +7,15 @@ struct ClaudeTabView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Mehrere Sitzungen (Agenten, Terminals, Fenster)? Dann rechts die Übersicht aller Sitzungen.
-            let showSessions = claude.visibleSessions.count > 1 || (claude.visibleSessions.count == 1 && claude.current?.steps.isEmpty != false)
-            if let t = claude.current {
+            // Mehrere Claude-Desktop-Fenster? Dann rechts die Übersicht dieser Sitzungen.
+            let showDesktop = claude.visibleSessions.count > 1 || (claude.visibleSessions.count == 1 && claude.current?.steps.isEmpty != false)
+            if !sessions.sessions.isEmpty {
+                SessionsPanel().frame(maxHeight: .infinity)
+            } else if let t = claude.current {
                 HStack(alignment: .top, spacing: 14) {
                     ClaudeTaskCard(task: t).frame(maxWidth: .infinity, maxHeight: .infinity)
-                    if showSessions && t.steps.isEmpty {
-                        ClaudeSessionsView().frame(width: 270)
+                    if showDesktop && t.steps.isEmpty {
+                        DesktopSessionsView().frame(width: 270)
                     } else {
                         ClaudeStepsView(task: t).frame(width: 250)
                     }
@@ -22,8 +24,8 @@ struct ClaudeTabView: View {
             } else {
                 HStack(alignment: .top, spacing: 14) {
                     ClaudeIdleCard().frame(maxWidth: .infinity, maxHeight: .infinity)
-                    if showSessions {
-                        ClaudeSessionsView().frame(width: 270)
+                    if showDesktop {
+                        DesktopSessionsView().frame(width: 270)
                     } else {
                         ClaudeHistoryView().frame(width: 230)
                     }

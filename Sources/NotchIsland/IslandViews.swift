@@ -115,11 +115,11 @@ struct CompactLeading: View {
                 }
             case .timer:
                 Image(systemName: "timer").foregroundStyle(.orange)
-            case .claude:
+            case .claude, .sessions:
                 HStack(spacing: 2) {
                     ClaudeGlyph(size: small ? 12 : 14)
-                    // Mehrere Agenten gleichzeitig: Anzahl anzeigen
-                    if !small, claude.activeSessionCount > 1 {
+                    // Mehrere Claude-Desktop-Fenster gleichzeitig aktiv: Anzahl anzeigen
+                    if !small, kind == .claude, claude.activeSessionCount > 1 {
                         Text("\(claude.activeSessionCount)")
                             .font(.system(size: 9, weight: .bold).monospacedDigit())
                             .foregroundStyle(.black)
