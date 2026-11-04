@@ -214,7 +214,9 @@ struct TabOptionsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(tr("Tabs sortieren, ein- und ausblenden")).font(.headline)
                     Text(tr("Zeilen mit der Maus an ☰ nach oben oder unten ziehen – oder die Pfeile nutzen. Häkchen = Tab wird angezeigt, Regler-Symbol = Optionen. Tipp: Auch direkt in der Insel kannst du Tabs per Drag & Drop verschieben."))
-                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        // Kein .fixedSize(horizontal: false, vertical: true) hier: in der Detailspalte des
+                        // NavigationSplitView zeichnet SwiftUI dann das ganze Einstellungsfenster leer.
+                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
             .padding(.horizontal, 20).padding(.top, 16)
@@ -225,6 +227,7 @@ struct TabOptionsView: View {
             }
             .padding(.horizontal, 20).padding(.bottom, 14)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     @ViewBuilder private func options(for t: IslandTab) -> some View {
