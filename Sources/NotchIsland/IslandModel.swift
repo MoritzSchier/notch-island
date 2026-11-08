@@ -587,11 +587,12 @@ final class IslandModel: ObservableObject {
     /// Zuletzt benutzter Tab – wird beim normalen Öffnen wieder geöffnet (Claude ausgenommen).
     private var lastTab: IslandTab?
 
-    /// Normales Öffnen: immer der zuletzt geöffnete Tab. Claude öffnet nur über die Ampel-Punkte (hoverTab),
-    /// war Claude zuletzt offen, geht es auf Start.
+    /// Normales Öffnen: Ist Claude Haupt-Tab („Immer“ oder „Bei großen Aufgaben“ mit großer Aufgabe), öffnet Claude.
+    /// Sonst der zuletzt geöffnete Tab; war das Claude, geht es auf Start.
     private func defaultTab() -> IslandTab {
+        if ClaudeService.shared.isPrimary && isVisible(.claude) { return .claude }
         if let t = lastTab { return t == .claude ? .home : t }
-        if let t = IslandTab(rawValue: UserDefaults.standard.string(forKey: Prefs.defaultTab) ?? "auto"), t != .claude { return t }
+        if let t = IslandTab(rawValue: UserDefaults.standard.string(forKey: Prefs.defaultTab) ?? "auto") { return t }
         return activities.first == .timer ? .timer : .home
     }
 
