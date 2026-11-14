@@ -55,6 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DockBadgeMonitor.shared.start()
             NotificationBannerMonitor.shared.start()
             NotificationDBMonitor.shared.start()
+            MailMonitor.shared.start()
             DownloadMonitor.shared.start()
             ClipboardHistory.shared.start()
             CameraMonitor.shared.start()

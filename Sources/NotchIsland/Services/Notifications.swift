@@ -336,6 +336,9 @@ final class NotificationDBMonitor {
                 }
                 for r in rows.sorted(by: { $0.rec < $1.rec }) where r.rec > self.lastRec {
                     self.lastRec = r.rec
+                    let id = Self.properBundleID(r.app)
+                    // Mails kommen direkt aus der Mail-Datenbank (zuverlässiger) – sonst doppelt
+                    if id == MailMonitor.mailBundle && MailMonitor.shared.active { continue }
                     NotificationBannerMonitor.shared.deliver(bundleID: Self.properBundleID(r.app), title: r.title, subtitle: r.subtitle, body: r.body, element: nil)
                 }
             }

@@ -249,6 +249,7 @@ enum DevBridge {
                 }
             }
         case "notedb": log("DB:\n" + NotificationDBMonitor.debugDescription())
+        case "maildb": log("Mail-DB (aktiv \(MailMonitor.shared.active)):\n" + MailMonitor.debugDescription())
         case "testnotify":
             // Test-Mitteilung über osascript (erscheint als „Skripteditor“)
             let p = Process()
