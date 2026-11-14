@@ -281,6 +281,26 @@ final class NotificationDBMonitor {
     func start() {
         timer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in self?.poll() }
         poll()
+        // Hatte diese App-Version die Freigabe früher und jetzt nicht mehr (z. B. nach Neuinstallation mit anderer ID),
+        // kommen Mitteilungen nur noch unzuverlässig an → einmal deutlich darauf hinweisen.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 15) { [weak self] in self?.hintIfMissing() }
+    }
+
+    private func hintIfMissing() {
+        let d = UserDefaults.standard
+        guard !available, Prefs.on(Prefs.showBanners), d.bool(forKey: "setupDone") else {
+            if available { d.set(true, forKey: "fdaWorked") }
+            return
+        }
+        let key = "fdaHint-" + (Bundle.main.bundleIdentifier ?? "") + "-" + (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")
+        guard d.bool(forKey: "fdaWorked") || !d.bool(forKey: key) else { return }
+        d.set(true, forKey: key)
+        d.set(false, forKey: "fdaWorked")
+        DevBridge.log("Mitteilungs-DB nicht lesbar → Hinweis Festplattenvollzugriff")
+        IslandModel.shared.show(Toast(symbol: "bell.slash.fill", tint: .orange,
+                                      title: tr("Mitteilungen: Festplattenvollzugriff fehlt"),
+                                      subtitle: tr("Klicken, um ihn für Notch Island einzuschalten"),
+                                      duration: 8, onTap: { Self.openSettings() }))
     }
 
     private var busy = false

@@ -189,6 +189,8 @@ extension Loc {
         "Im Chat antworten": "Answer in the chat",
         "Zum Chat": "Go to chat",
         "Fehler": "Error",
+        "Mitteilungen: Festplattenvollzugriff fehlt": "Notifications: Full Disk Access is missing",
+        "Klicken, um ihn für Notch Island einzuschalten": "Click to turn it on for Notch Island",
         "Antwort fertig": "Reply finished",
         "Antwort bereit · %@": "Reply ready · %@",
         "Fertig · %@": "Done · %@",

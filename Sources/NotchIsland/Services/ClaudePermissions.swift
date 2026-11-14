@@ -243,9 +243,17 @@ extension ClaudeService {
         retried = false
         permission = nil
         DevBridge.log("Antwort: \(option.label)")
-        let ok: Bool
-        if option.id < permissionElements.count {
-            ok = AXUIElementPerformAction(permissionElements[option.id], kAXPressAction as CFString) == .success
+        var ok: Bool
+        let hadElement = option.id < permissionElements.count
+        if hadElement {
+            let el = permissionElements[option.id]
+            ok = AXUIElementPerformAction(el, kAXPressAction as CFString) == .success
+            if !ok {
+                // AXPress abgelehnt → gleich echter Mausklick
+                retried = true
+                AXClicker.click(el, window: attentionWindow)
+                ok = true
+            }
         } else {
             ok = false
         }
@@ -262,7 +270,7 @@ extension ClaudeService {
                 symbol: option.role == .deny ? "hand.raised.slash.fill" : "checkmark.shield.fill",
                 tint: option.role == .deny ? .red : .green,
                 title: option.label, subtitle: "an Claude gesendet", trailing: option.role == .deny ? .none : .check, duration: 1.8))
-        } else if option.id >= 0 && !permissionIsDemo {
+        } else if option.id >= 0 && !hadElement && !permissionIsDemo {
             // Nur wenn die Antwort nicht ankam: Hinweis mit Sprung zum richtigen Chat
             focusChat()
             IslandModel.shared.show(Toast(symbol: "exclamationmark.triangle.fill", tint: .orange,
@@ -292,11 +300,12 @@ extension ClaudeService {
         // Ist er nach 1,5 s immer noch da, kam der Klick nicht an → einmal erneut drücken.
         if let i = list.firstIndex(where: { $0.prompt.key == answeredKey }), Date().timeIntervalSince(answeredAt) < 8 {
             let f = list[i]
-            if !retried, Date().timeIntervalSince(answeredAt) > 1.5,
+            if !retried, Date().timeIntervalSince(answeredAt) > 1.2,
                let j = f.prompt.options.firstIndex(where: { $0.label == answeredLabel }), j < f.elements.count {
+                // AXPress kam nicht an (neuere Claude-Versionen) → echter Mausklick auf den Knopf
                 retried = true
-                DevBridge.log("Wiederhole Klick: \(answeredLabel)")
-                _ = AXUIElementPerformAction(f.elements[j], kAXPressAction as CFString)
+                DevBridge.log("Klick kam nicht an – Mausklick: \(answeredLabel)")
+                AXClicker.click(f.elements[j], window: f.window)
             }
             list.remove(at: i)
         }
@@ -588,5 +597,52 @@ struct CodeAnswerField: View {
         // Fokus an die App zurückgeben, in der du vorher warst
         previousApp?.activate()
         previousApp = nil
+    }
+}
+
+/// Neuere Claude-Versionen reagieren nicht immer auf AXPress (die Knöpfe hören auf Zeiger-Ereignisse).
+/// Dann wird – kurz und für dich fast unsichtbar – ein echter Mausklick auf den Knopf ausgeführt:
+/// Claude-Fenster nach vorn, klicken, Mauszeiger und vorherige App zurück.
+enum AXClicker {
+    static func frame(of el: AXUIElement) -> CGRect? {
+        var pv: CFTypeRef?, sv: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(el, kAXPositionAttribute as CFString, &pv) == .success,
+              AXUIElementCopyAttributeValue(el, kAXSizeAttribute as CFString, &sv) == .success,
+              let pv, let sv, CFGetTypeID(pv) == AXValueGetTypeID(), CFGetTypeID(sv) == AXValueGetTypeID() else { return nil }
+        var p = CGPoint.zero, s = CGSize.zero
+        AXValueGetValue(pv as! AXValue, .cgPoint, &p)
+        AXValueGetValue(sv as! AXValue, .cgSize, &s)
+        guard s.width > 2, s.height > 2 else { return nil }
+        return CGRect(origin: p, size: s)
+    }
+
+    static func click(_ el: AXUIElement, window: AXUIElement?) {
+        guard AXIsProcessTrusted() else { return }
+        let previous = NSWorkspace.shared.frontmostApplication
+        _ = AXUIElementPerformAction(el, "AXScrollToVisible" as CFString)
+        if let window {
+            AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+            AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, kCFBooleanTrue)
+        }
+        NSRunningApplication.runningApplications(withBundleIdentifier: Const.claudeBundle).first?.activate()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            guard let r = frame(of: el) else { DevBridge.log("Mausklick: Knopf hat keine Position"); return }
+            let pt = CGPoint(x: r.midX, y: r.midY)
+            let oldPos = CGEvent(source: nil)?.location
+            let src = CGEventSource(stateID: .hidSystemState)
+            for type in [CGEventType.mouseMoved, .leftMouseDown, .leftMouseUp] {
+                let e = CGEvent(mouseEventSource: src, mouseType: type, mouseCursorPosition: pt, mouseButton: .left)
+                e?.setIntegerValueField(.mouseEventClickState, value: 1)
+                e?.post(tap: .cghidEventTap)
+                usleep(type == .leftMouseDown ? 60_000 : 20_000)
+            }
+            DevBridge.log("Mausklick auf \(Int(pt.x)),\(Int(pt.y))")
+            if let oldPos { CGWarpMouseCursorPosition(oldPos); CGAssociateMouseAndMouseCursorPosition(1) }
+            // Vorherige App wieder nach vorn (außer es war Claude selbst oder die Insel)
+            if let previous, previous.bundleIdentifier != Const.claudeBundle,
+               previous.processIdentifier != ProcessInfo.processInfo.processIdentifier {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { previous.activate() }
+            }
+        }
     }
 }

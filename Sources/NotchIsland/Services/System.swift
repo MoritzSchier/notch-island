@@ -34,6 +34,41 @@ final class BatteryMonitor: ObservableObject {
     @Published private(set) var hasBattery = false
     @Published private(set) var minutesLeft: Int?
     @Published private(set) var details: BatteryDetails?
+    /// Von macOS selbst berechnete maximale Kapazität (%), alle 30 Minuten aktualisiert
+    private var systemHealth: Int?
+    private var systemHealthAt = Date.distantPast
+
+    /// Liest „Maximale Kapazität“ so, wie macOS sie anzeigt (`system_profiler SPPowerDataType -json`).
+    /// macOS rechnet anders als die Rohwerte des Akkus (z. B. 100 % statt 94 %) – damit stimmt die Insel mit den Einstellungen überein.
+    private func refreshSystemHealth() {
+        guard Date().timeIntervalSince(systemHealthAt) > 1800 else { return }
+        systemHealthAt = Date()
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/usr/sbin/system_profiler")
+            p.arguments = ["SPPowerDataType", "-json"]
+            let pipe = Pipe()
+            p.standardOutput = pipe
+            p.standardError = FileHandle.nullDevice
+            guard (try? p.run()) != nil else { return }
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            p.waitUntilExit()
+            guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let items = obj["SPPowerDataType"] as? [[String: Any]] else { return }
+            var percent: Int?
+            for item in items {
+                if let h = item["sppower_battery_health_info"] as? [String: Any],
+                   let s = h["sppower_battery_health_maximum_capacity"] as? String {
+                    percent = Int(s.filter(\.isNumber))
+                }
+            }
+            DispatchQueue.main.async {
+                guard let self, let percent, percent > 0, percent <= 100 else { return }
+                self.systemHealth = percent
+                if var d = self.details { d.systemHealthPercent = percent; self.details = d }
+            }
+        }
+    }
 
     /// Werte direkt vom Akku-Controller (wie coconutBattery)
     struct BatteryDetails: Equatable {
@@ -54,7 +89,10 @@ final class BatteryMonitor: ObservableObject {
         var chargingHW = false
         /// Grund, warum nicht geladen wird (≠ 0: z. B. Ladelimit/optimiertes Laden)
         var notChargingReason = 0
+        /// „Maximale Kapazität“ genau wie in Systemeinstellungen › Batterie (aus system_profiler)
+        var systemHealthPercent: Int?
         var health: Double {
+            if let p = systemHealthPercent { return Double(p) / 100 }
             guard designMAh > 0 else { return 0 }
             let base = nominalMAh > 0 ? nominalMAh : maxMAh
             return min(1, Double(base) / Double(designMAh))
@@ -129,7 +167,12 @@ final class BatteryMonitor: ObservableObject {
             let charger = d["ChargerData"] as? [String: Any] ?? [:]
             det.chargingHW = ((d["IsCharging"] as? NSNumber)?.boolValue ?? (charger["IsCharging"] as? NSNumber)?.boolValue) ?? (ma > 0)
             det.notChargingReason = (charger["NotChargingReason"] as? NSNumber)?.intValue ?? 0
-            DispatchQueue.main.async { if self.details != det { self.details = det } }
+            DispatchQueue.main.async {
+                var det = det
+                det.systemHealthPercent = self.systemHealth
+                self.refreshSystemHealth()
+                if self.details != det { self.details = det }
+            }
         }
     }
 
