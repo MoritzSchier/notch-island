@@ -102,6 +102,12 @@ struct CompactLeading: View {
     @ObservedObject var claude = ClaudeService.shared
     @ObservedObject var media = MediaController.shared
     @ObservedObject var calls = CallMonitor.shared
+    @ObservedObject var sessionStore = SessionStore.shared
+
+    private var isWorking: Bool {
+        if claude.current?.state == .running { return true }
+        return sessionStore.sessions.contains { sessionStore.displayStatus($0) == .working }
+    }
 
     var body: some View {
         Group {
@@ -117,7 +123,8 @@ struct CompactLeading: View {
                 Image(systemName: "timer").foregroundStyle(.orange)
             case .claude, .sessions:
                 HStack(spacing: 2) {
-                    ClaudeGlyph(size: small ? 12 : 14)
+                    // Dreht sich nur, solange wirklich gearbeitet wird – fertige Sitzungen zeigen den Stern ruhig
+                    ClaudeGlyph(size: small ? 12 : 14, spinning: isWorking)
                     // Mehrere Claude-Desktop-Fenster gleichzeitig aktiv: Anzahl anzeigen
                     if !small, kind == .claude, claude.activeSessionCount > 1 {
                         Text("\(claude.activeSessionCount)")

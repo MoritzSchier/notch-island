@@ -55,6 +55,8 @@ final class SessionStore: ObservableObject {
     /// What the dot shows: an acknowledged finished turn falls back to grey.
     func displayStatus(_ s: ClaudeSession) -> SessionStatus {
         if s.status == .done && acknowledged.contains(SessionLoader.attentionKey(for: s)) { return .ready }
+        // Fertige Antwort, die niemand angeklickt hat: nach 5 Minuten nicht mehr in der Notch anzeigen
+        if s.status == .done && Date().timeIntervalSince(s.updatedAt) > 300 { return .ready }
         return s.status
     }
 
